@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Pressable, Image } from 'react-native';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
@@ -15,48 +15,61 @@ import EmprestimoScreen from '../screens/EmprestimoScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import WelcomeScreen from '../screens/WelcomeScreen';
+import StatementScreen from '../screens/StatementScreen';
+import ProfileScreen from '../screens/ProfileScreen'; 
 
 const Drawer = createDrawerNavigator();
 const Stack = createNativeStackNavigator();
 
 /**
  * --- HomeStack ---
- * Gerencia a navegação interna da aba "Início".
+ * Agora o Perfil mora aqui dentro para o botão de "Voltar" funcionar 
+ * igual ao da tela de Empréstimo.
  */
 function HomeStack() {
   return (
     <Stack.Navigator id="home-stack" screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Dashboard" component={DashboardScreen} />
       <Stack.Screen name="TransactionForm" component={TransactionFormScreen} />
+      <Stack.Screen name="Statement" component={StatementScreen} />
       <Stack.Screen name="ResumoFinanceiro" component={ResumoScreen} /> 
       <Stack.Screen name="Transferencia" component={TransferenciaScreen} /> 
       <Stack.Screen name="Emprestimo" component={EmprestimoScreen} /> 
+      
+      {/* INSERÇÃO DO PERFIL NA PILHA (STACK) */}
+      <Stack.Screen name="Profile" component={ProfileScreen} /> 
     </Stack.Navigator>
   );
 }
 
 /**
  * --- CustomDrawerContent ---
- * Personalização do Menu Lateral
  */
 function CustomDrawerContent(props: any) {
-  const { logout } = useAuth();
+  const { signOut, user } = useAuth();
+  const firstName = user?.displayName ? user.displayName.split(' ')[0] : 'Usuário';
+
   return (
     <DrawerContentScrollView {...props} contentContainerStyle={{ flex: 1 }}>
       <View>
         <View style={styles.drawerHeader}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>A</Text>
+            {user?.photoURL ? (
+              <Image source={{ uri: user.photoURL }} style={styles.avatarImage} />
+            ) : (
+              <Text style={styles.avatarText}>{firstName.charAt(0).toUpperCase()}</Text>
+            )}
           </View>
-          <Text style={styles.userName}>Arthur Ramos</Text>
-          <Text style={styles.userEmail}>arthur@bytebank.com.br</Text>
+          <Text style={styles.userName}>{user?.displayName || 'Usuário Bytebank'}</Text>
+          <Text style={styles.userEmail}>{user?.email}</Text>
         </View>
+        
         <DrawerItemList {...props} />
       </View>
       
       <View style={styles.logoutContainer}>
         <Pressable 
-          onPress={logout} 
+          onPress={signOut} 
           style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }, styles.logoutBtn]}
         >
           <Text style={styles.logoutText}>Sair da Conta</Text>
@@ -100,18 +113,18 @@ export default function Routes() {
         }} 
       />
 
+      {/* A rota 'Home' agora engloba Dashboard e Perfil */}
       <Drawer.Screen 
         name="Home" 
         component={HomeStack} 
         options={{ title: 'Início' }} 
       />
-
-      <Drawer.Screen 
-        name="Profile" 
-        component={DashboardScreen} 
-        options={{ title: 'Meu Perfil' }} 
-      />
       
+      {/* Dica: Removi a ProfileScreen direta do Drawer. 
+          Agora o acesso será pelo avatar do Dashboard, 
+          garantindo que ela sempre tenha de onde "voltar".
+      */}
+
       <Drawer.Screen 
         name="Settings" 
         component={DashboardScreen} 
@@ -128,11 +141,12 @@ export default function Routes() {
 
 const styles = StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.primary },
-  drawerHeader: { padding: 20, backgroundColor: COLORS.surface, marginBottom: 10, alignItems: 'flex-start' },
-  avatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  drawerHeader: { padding: 20, backgroundColor: '#FFF', marginBottom: 10, alignItems: 'flex-start', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  avatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', marginBottom: 10, overflow: 'hidden' },
+  avatarImage: { width: '100%', height: '100%' },
   avatarText: { color: COLORS.white, fontSize: 24, fontWeight: 'bold' },
-  userName: { fontSize: 18, fontWeight: 'bold', color: COLORS.textPrimary },
-  userEmail: { fontSize: 12, color: COLORS.textSecondary },
+  userName: { fontSize: 18, fontWeight: 'bold', color: '#333' },
+  userEmail: { fontSize: 12, color: '#666' },
   logoutContainer: { marginTop: 'auto', padding: 20, borderTopWidth: 1, borderColor: '#E0E0E0' },
   logoutBtn: { paddingVertical: 10 },
   logoutText: { color: '#D32F2F', fontWeight: 'bold', fontSize: 16 },

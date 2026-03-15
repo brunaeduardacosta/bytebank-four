@@ -1,93 +1,182 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TextInput, 
+  TouchableOpacity, 
+  KeyboardAvoidingView, 
+  Platform, 
+  Alert,
+  ActivityIndicator,
+  SafeAreaView
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
-import { COLORS } from '../theme';
 
 export default function RegisterScreen({ navigation }: any) {
-  // ATENÇÃO: Confirme se a sua função de cadastro no AuthContext se chama "register" ou "signUp"
-  const { register } = useAuth(); 
-  const [name, setName] = useState('');
+  const { signUp } = useAuth();
+  
+  // Estados do formulário
+  const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [senha, setSenha] = useState('');
+  
+  // Estados de UX
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // --- FUNÇÃO DE REGISTO ---
   const handleRegister = async () => {
-    if (!email || !password || !name) {
-      alert("Preencha todos os campos.");
-      return;
+    // 1. Validação de campos vazios
+    if (!nome.trim() || !email.trim() || !senha.trim()) {
+      return Alert.alert('Atenção', 'Por favor, preencha todos os campos.');
     }
+
+    // 2. Validação de segurança da senha (Exigência do Firebase)
+    if (senha.length < 6) {
+      return Alert.alert('Atenção', 'A senha deve ter pelo menos 6 caracteres.');
+    }
+
     setIsLoading(true);
+
     try {
-    await register(email, password);
-    } catch (error) {
-      alert("Erro ao criar conta. Tente novamente.");
+      // Chama a função do AuthContext passando o Nome, E-mail e Senha
+      await signUp(nome.trim(), email.trim(), senha);
+      
+      // Nota: Se o registo for bem-sucedido, o Firebase faz o login automaticamente
+      // e o onAuthStateChanged no App.tsx/Routes.tsx vai redirecionar para o Dashboard!
+    } catch (error: any) {
+      Alert.alert('Erro ao Criar Conta', error.message);
+    } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={styles.topHalf}>
-        <Text style={styles.brandName}>Abra sua conta</Text>
-        <Text style={styles.subtitle}>É rápido, fácil e seguro.</Text>
-      </View>
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+        style={styles.keyboardView}
+      >
+        
+        {/* CABEÇALHO */}
+        <View style={styles.headerContainer}>
+          <View style={styles.iconContainer}>
+            <Ionicons name="person-add" size={36} color="#FFF" />
+          </View>
+          <Text style={styles.title}>Criar Conta</Text>
+          <Text style={styles.subtitle}>Comece a organizar a sua vida financeira</Text>
+        </View>
 
-      <View style={styles.bottomHalf}>
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <Text style={styles.label}>Nome Completo</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Como quer ser chamado?"
-            placeholderTextColor={COLORS.textSecondary}
-            value={name}
-            onChangeText={setName}
-          />
+        {/* FORMULÁRIO */}
+        <View style={styles.formContainer}>
+          
+          {/* Campo Nome */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Como quer ser chamado?</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="person-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Seu nome ou apelido"
+                autoCapitalize="words"
+                value={nome}
+                onChangeText={setNome}
+              />
+            </View>
+          </View>
 
-          <Text style={styles.label}>E-mail</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Seu melhor e-mail"
-            placeholderTextColor={COLORS.textSecondary}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={setEmail}
-          />
+          {/* Campo E-mail */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>E-mail</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="mail-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="seu@email.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={email}
+                onChangeText={setEmail}
+              />
+            </View>
+          </View>
 
-          <Text style={styles.label}>Senha</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Crie uma senha forte"
-            placeholderTextColor={COLORS.textSecondary}
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
+          {/* Campo Senha com Olhinho */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Senha</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="lock-closed-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="No mínimo 6 caracteres"
+                secureTextEntry={!showPassword}
+                value={senha}
+                onChangeText={setSenha}
+              />
+              <TouchableOpacity 
+                style={styles.eyeIcon} 
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Ionicons 
+                  name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                  size={22} 
+                  color="#6B7280" 
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
 
-          <Pressable style={styles.primaryButton} onPress={handleRegister} disabled={isLoading}>
-            {isLoading ? <ActivityIndicator color={COLORS.primary} /> : <Text style={styles.primaryButtonText}>Criar Conta</Text>}
-          </Pressable>
+          {/* Botão de Registar */}
+          <TouchableOpacity 
+            style={[styles.registerBtn, isLoading && styles.registerBtnDisabled]} 
+            onPress={handleRegister}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#FFF" size="small" />
+            ) : (
+              <Text style={styles.registerBtnText}>Criar minha conta</Text>
+            )}
+          </TouchableOpacity>
+        </View>
 
-          <Pressable style={styles.secondaryButton} onPress={() => navigation.goBack()}>
-            <Text style={styles.secondaryButtonText}>Já tem conta? Fazer Login</Text>
-          </Pressable>
-        </ScrollView>
-      </View>
-    </KeyboardAvoidingView>
+        {/* RODAPÉ: Voltar para Login */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Já tem uma conta? </Text>
+          <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+            <Text style={styles.loginText}>Entrar</Text>
+          </TouchableOpacity>
+        </View>
+
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
-// Os estilos são idênticos aos da tela de Login para manter o padrão!
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.primary },
-  topHalf: { flex: 0.3, justifyContent: 'center', paddingHorizontal: 30 },
-  brandName: { fontSize: 32, fontWeight: 'bold', color: COLORS.white },
-  subtitle: { fontSize: 16, color: COLORS.accent, marginTop: 5 },
-  bottomHalf: { flex: 0.7, backgroundColor: COLORS.background || '#F5F6F8', borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 20, paddingTop: 30 },
-  label: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 8 },
-  input: { backgroundColor: COLORS.white, paddingHorizontal: 16, paddingVertical: 15, borderRadius: 12, fontSize: 16, color: COLORS.textPrimary, marginBottom: 20, borderWidth: 1, borderColor: '#E0E0E0' },
-  primaryButton: { backgroundColor: COLORS.accent, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 10 },
-  primaryButtonText: { color: COLORS.primary, fontSize: 16, fontWeight: 'bold', textTransform: 'uppercase' },
-  secondaryButton: { marginTop: 20, alignItems: 'center', padding: 10, marginBottom: 40 },
-  secondaryButtonText: { color: COLORS.primary, fontSize: 14, fontWeight: 'bold' },
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  keyboardView: { flex: 1, justifyContent: 'center', padding: 24 },
+  
+  headerContainer: { alignItems: 'center', marginBottom: 40 },
+  iconContainer: { width: 72, height: 72, backgroundColor: '#47A138', borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 20, elevation: 4 },
+  title: { fontSize: 26, fontWeight: '900', color: '#1F2937', marginBottom: 8 },
+  subtitle: { fontSize: 14, color: '#6B7280' },
+  
+  formContainer: { width: '100%' },
+  inputGroup: { marginBottom: 20 },
+  label: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 8, textTransform: 'uppercase' },
+  inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, paddingHorizontal: 15 },
+  inputIcon: { marginRight: 10 },
+  input: { flex: 1, paddingVertical: 16, fontSize: 16, color: '#1F2937' },
+  eyeIcon: { padding: 10 },
+  
+  registerBtn: { backgroundColor: '#47A138', padding: 18, borderRadius: 16, alignItems: 'center', justifyContent: 'center', elevation: 2, marginTop: 10 },
+  registerBtnDisabled: { opacity: 0.7 },
+  registerBtnText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
+  
+  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 30 },
+  footerText: { color: '#6B7280', fontSize: 14 },
+  loginText: { color: '#47A138', fontSize: 14, fontWeight: 'bold' }
 });

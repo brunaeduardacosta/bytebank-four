@@ -9,28 +9,27 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import Navbar from '../components/ui/Navbar';
 
+// IMPORTAÇÃO DO CONTEXTO DE TRANSAÇÕES
+import { useTransactions } from '../context/TransactionContext';
+
 const { width } = Dimensions.get('window');
 
 const Themes = {
   light: {
-    bg: "#F8FAFC",
-    card: "#FFFFFF",
-    text: "#1F2937",
-    subText: "#6B7280",
-    border: "#E2E8F0",
-    accent: "#47A138",
-    tab: "#F1F5F9",
-    danger: "#EF4444",
-    avatarBg: "#E2E8F0",
-    avatarText: "#6B7280"
+    bg: "#F8FAFC", card: "#FFFFFF", text: "#1F2937", subText: "#6B7280",
+    border: "#E2E8F0", accent: "#47A138", tab: "#F1F5F9", danger: "#EF4444",
+    avatarBg: "#E2E8F0", avatarText: "#6B7280"
   }
 };
 
 export default function TransferenciaScreen({ navigation }: any) {
   const theme = Themes.light;
 
+  // CONEXÃO COM O FIREBASE
+  const { balance: saldoDisponivel, addTransaction } = useTransactions();
+
   // Estados
-  const [valor, setValor] = useState(''); // Armazena centavos como string: "150" = 1,50
+  const [valor, setValor] = useState(''); // Armazena centavos
   const [loadingTransfer, setLoadingTransfer] = useState(false);
   const [tipoTransferencia, setTipoTransferencia] = useState<'pix' | 'ted'>('pix');
   const [chavePix, setChavePix] = useState('');
@@ -38,8 +37,6 @@ export default function TransferenciaScreen({ navigation }: any) {
   const [agencia, setAgencia] = useState('');
   const [conta, setConta] = useState('');
   const [cpfDestino, setCpfDestino] = useState('');
-
-  const saldoDisponivel = 12450.00;
 
   // Formatação de Moeda em Tempo Real
   const handleValorChange = (text: string) => {
@@ -89,6 +86,7 @@ export default function TransferenciaScreen({ navigation }: any) {
     if (text) setChavePix(text);
   };
 
+  // FUNÇÃO DE TRANSFERÊNCIA REAL NO FIREBASE
   const handleTransfer = () => {
     Alert.alert(
       "Confirmar Transferência",
@@ -100,12 +98,25 @@ export default function TransferenciaScreen({ navigation }: any) {
           onPress: async () => {
             setLoadingTransfer(true);
             try {
-              await new Promise(resolve => setTimeout(resolve, 2000)); // Simulação API
+              // Define o título da transação com base no tipo escolhido
+              const descricao = tipoTransferencia === 'pix' 
+                ? `Transferência PIX - ${chavePix}`
+                : `Transferência TED - Banco ${banco}`;
+
+              // Salva a transferência como despesa no Firebase
+              await addTransaction({
+                description: descricao,
+                amount: valorNumerico,
+                type: 'despesa',
+                category: 'Transferência'
+              });
+
               Alert.alert("Sucesso", "Transferência realizada com sucesso!");
               resetForm();
-              navigation.goBack();
+              navigation.goBack(); // Volta para o Dashboard
             } catch (err) {
               Alert.alert("Erro", "Não foi possível completar a transação.");
+              console.error(err);
             } finally {
               setLoadingTransfer(false);
             }
@@ -140,7 +151,7 @@ export default function TransferenciaScreen({ navigation }: any) {
         <View style={[styles.mainCard, { backgroundColor: theme.card, borderColor: isOverBalance ? theme.danger : theme.border }]}>
           <View style={styles.rowBetween}>
             <Text style={[styles.label, { color: theme.subText, fontWeight: '700' }]}>VALOR PARA ENVIAR</Text>
-            <TouchableOpacity onPress={() => setValor((saldoDisponivel * 100).toString())}>
+            <TouchableOpacity onPress={() => setValor((saldoDisponivel * 100).toFixed(0))}>
               <Text style={{ color: theme.accent, fontSize: 12, fontWeight: '800' }}>USAR TUDO</Text>
             </TouchableOpacity>
           </View>
@@ -159,7 +170,7 @@ export default function TransferenciaScreen({ navigation }: any) {
 
           <View style={styles.balanceFooter}>
             <Text style={[styles.balanceText, { color: theme.subText }]}>
-              Saldo disponível: <Text style={{fontWeight: '700', color: theme.text}}>R$ {saldoDisponivel.toLocaleString('pt-BR')}</Text>
+              Saldo disponível: <Text style={{fontWeight: '700', color: theme.text}}>R$ {saldoDisponivel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Text>
             </Text>
             {isOverBalance && (
               <Text style={{ color: theme.danger, fontSize: 12, fontWeight: '700', marginTop: 4 }}>

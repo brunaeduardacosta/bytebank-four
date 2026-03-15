@@ -2,194 +2,182 @@ import React, { useState } from 'react';
 import { 
   View, 
   Text, 
-  TextInput, 
-  Pressable, 
   StyleSheet, 
+  TextInput, 
+  TouchableOpacity, 
   KeyboardAvoidingView, 
-  Platform,
+  Platform, 
+  Alert,
   ActivityIndicator,
-  StatusBar
+  SafeAreaView
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
-import { COLORS } from '../theme';
 
 export default function LoginScreen({ navigation }: any) {
-  const { login } = useAuth();
+  // Puxando as funções do nosso "Cérebro"
+  const { signIn, resetPassword } = useAuth();
+  
+  // Estados da tela
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  
+  // Estados de UX (Experiência do Usuário)
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // --- FUNÇÃO DE LOGIN ---
   const handleLogin = async () => {
-    if (!email || !password) {
-      alert("Por favor, preencha e-mail e senha.");
-      return;
+    // 1. Validação básica antes de chamar o banco
+    if (!email.trim() || !password.trim()) {
+      return Alert.alert('Atenção', 'Por favor, preencha e-mail e senha.');
     }
 
-    setIsLoading(true);
+    setIsLoading(true); // Liga o "girando" no botão
+
     try {
-      await login(email, password);
-      // A mágica da Fase 1 acontece aqui: ao logar, o Routes.tsx nos joga pro Dashboard automaticamente!
-    } catch (error) {
-      alert("Credenciais inválidas. Tente novamente.");
-      setIsLoading(false);
+      // Tenta fazer o login no Firebase
+      await signIn(email.trim(), password);
+      // Se der certo, o onAuthStateChanged do App.tsx/Routes.tsx vai trocar a tela sozinho!
+    } catch (error: any) {
+      // AQUI ESTÁ A MÁGICA! Pega a mensagem traduzida do AuthContext e joga na tela
+      Alert.alert('Erro ao Entrar', error.message);
+    } finally {
+      setIsLoading(false); // Desliga o "girando" do botão dando certo ou errado
+    }
+  };
+
+  // --- FUNÇÃO DE ESQUECI A SENHA ---
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      return Alert.alert('Atenção', 'Digite seu e-mail no campo acima para receber o link de recuperação.');
+    }
+
+    try {
+      await resetPassword(email.trim());
+      Alert.alert('E-mail enviado!', 'Verifique sua caixa de entrada (e o spam) para redefinir sua senha.');
+    } catch (error: any) {
+      Alert.alert('Erro', error.message);
     }
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
-      
-      {/* Metade Superior: Marca */}
-      <View style={styles.topHalf}>
-        <View style={styles.logoCircle}>
-          <Text style={styles.logoText}>B</Text>
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+        style={styles.keyboardView}
+      >
+        
+        {/* CABEÇALHO */}
+        <View style={styles.headerContainer}>
+          <View style={styles.iconContainer}>
+            <Ionicons name="wallet" size={40} color="#FFF" />
+          </View>
+          <Text style={styles.title}>Bem-vindo de volta</Text>
+          <Text style={styles.subtitle}>Acesse sua conta para continuar</Text>
         </View>
-        <Text style={styles.brandName}>Bytebank</Text>
-      </View>
 
-      {/* Metade Inferior: Formulário (Estilo Cartão) */}
-      <View style={styles.bottomHalf}>
-        <View style={styles.formCard}>
-          <Text style={styles.welcomeText}>Acesse sua conta</Text>
+        {/* FORMULÁRIO */}
+        <View style={styles.formContainer}>
+          
+          {/* Campo E-mail */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>E-mail</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="mail-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="seu@email.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={email}
+                onChangeText={setEmail}
+              />
+            </View>
+          </View>
 
-          <Text style={styles.label}>E-mail</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Digite seu e-mail"
-            placeholderTextColor={COLORS.textSecondary}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={setEmail}
-          />
+          {/* Campo Senha com Olhinho */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Senha</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="lock-closed-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="••••••••"
+                secureTextEntry={!showPassword} // Controlado pelo estado
+                value={password}
+                onChangeText={setPassword}
+              />
+              <TouchableOpacity 
+                style={styles.eyeIcon} 
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Ionicons 
+                  name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                  size={22} 
+                  color="#6B7280" 
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
 
-          <Text style={styles.label}>Senha</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Sua senha secreta"
-            placeholderTextColor={COLORS.textSecondary}
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
+          {/* Esqueci a Senha */}
+          <TouchableOpacity style={styles.forgotBtn} onPress={handleForgotPassword}>
+            <Text style={styles.forgotText}>Esqueci minha senha</Text>
+          </TouchableOpacity>
 
-          <Pressable 
-            style={({ pressed }) => [styles.primaryButton, { opacity: pressed ? 0.8 : 1 }]} 
+          {/* Botão de Entrar */}
+          <TouchableOpacity 
+            style={[styles.loginBtn, isLoading && styles.loginBtnDisabled]} 
             onPress={handleLogin}
-            disabled={isLoading}
+            disabled={isLoading} // Desativa o botão se estiver carregando
           >
             {isLoading ? (
-              <ActivityIndicator color={COLORS.primary} />
+              <ActivityIndicator color="#FFF" size="small" />
             ) : (
-              <Text style={styles.primaryButtonText}>Entrar</Text>
+              <Text style={styles.loginBtnText}>Entrar</Text>
             )}
-          </Pressable>
-
-          <Pressable 
-            style={styles.secondaryButton} 
-            onPress={() => navigation.navigate('Register')}
-          >
-            <Text style={styles.secondaryButtonText}>Ainda não é cliente? Abra sua conta</Text>
-          </Pressable>
+          </TouchableOpacity>
         </View>
-      </View>
-    </KeyboardAvoidingView>
+
+        {/* RODAPÉ: Ir para Cadastro */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Ainda não tem uma conta? </Text>
+          <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+            <Text style={styles.registerText}>Cadastre-se</Text>
+          </TouchableOpacity>
+        </View>
+
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.primary, // Fundo principal escuro
-  },
-  topHalf: {
-    flex: 0.4,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: COLORS.accent, // Dourado
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  logoText: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: COLORS.primary,
-  },
-  brandName: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: COLORS.white,
-    letterSpacing: 1,
-  },
-  bottomHalf: {
-    flex: 0.6,
-    backgroundColor: COLORS.background || '#F5F6F8', // Fundo clarinho
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    paddingHorizontal: 20,
-    paddingTop: 30,
-  },
-  formCard: {
-    flex: 1,
-  },
-  welcomeText: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: COLORS.textPrimary,
-    marginBottom: 25,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: COLORS.white,
-    paddingHorizontal: 16,
-    paddingVertical: 15,
-    borderRadius: 12,
-    fontSize: 16,
-    color: COLORS.textPrimary,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  primaryButton: {
-    backgroundColor: COLORS.accent, 
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 10,
-    shadowColor: COLORS.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 4,
-  },
-  primaryButtonText: {
-    color: COLORS.primary, 
-    fontSize: 16,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
-  },
-  secondaryButton: {
-    marginTop: 20,
-    alignItems: 'center',
-    padding: 10,
-  },
-  secondaryButtonText: {
-    color: COLORS.primary,
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  keyboardView: { flex: 1, justifyContent: 'center', padding: 24 },
+  
+  headerContainer: { alignItems: 'center', marginBottom: 40 },
+  iconContainer: { width: 72, height: 72, backgroundColor: '#47A138', borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 20, elevation: 4 },
+  title: { fontSize: 26, fontWeight: '900', color: '#1F2937', marginBottom: 8 },
+  subtitle: { fontSize: 14, color: '#6B7280' },
+  
+  formContainer: { width: '100%' },
+  inputGroup: { marginBottom: 20 },
+  label: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 8, textTransform: 'uppercase' },
+  inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, paddingHorizontal: 15 },
+  inputIcon: { marginRight: 10 },
+  input: { flex: 1, paddingVertical: 16, fontSize: 16, color: '#1F2937' },
+  eyeIcon: { padding: 10 },
+  
+  forgotBtn: { alignSelf: 'flex-end', marginBottom: 24 },
+  forgotText: { color: '#47A138', fontSize: 14, fontWeight: '600' },
+  
+  loginBtn: { backgroundColor: '#47A138', padding: 18, borderRadius: 16, alignItems: 'center', justifyContent: 'center', elevation: 2 },
+  loginBtnDisabled: { opacity: 0.7 },
+  loginBtnText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
+  
+  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 30 },
+  footerText: { color: '#6B7280', fontSize: 14 },
+  registerText: { color: '#47A138', fontSize: 14, fontWeight: 'bold' }
 });

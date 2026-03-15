@@ -1,81 +1,60 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Platform,
-  Alert,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { signOut } from 'firebase/auth';
-import { auth } from '../../services/firebase'; 
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Image } from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native'; // Para navegar sem passar props
+import { useAuth } from '../../context/AuthContext'; // Para pegar a foto real
 
 interface NavbarProps {
   theme: any;
 }
 
 const Navbar: React.FC<NavbarProps> = ({ theme }) => {
+  const { user } = useAuth();
+  const navigation = useNavigation<any>();
 
-  const handleLogout = () => {
-    Alert.alert(
-      "Sair da conta",
-      "Tem certeza que deseja encerrar sua sessão?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Sair",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await signOut(auth);
-              // O listener onAuthStateChanged nas suas Routes cuidará do redirecionamento
-            } catch (error) {
-              console.error("Erro ao sair:", error);
-              Alert.alert("Erro", "Não foi possível sair agora.");
-            }
-          },
-        },
-      ]
-    );
-  };
+  // Pegamos a inicial do nome real ou 'A' de Arthur
+  const userInitial = user?.displayName ? user.displayName.charAt(0).toUpperCase() : 'A';
 
   return (
     <View style={[navStyles.topbar, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
       <View style={navStyles.topbarInner}>
         
-        {/* Lado Esquerdo: Logo */}
+        {/* LADO ESQUERDO: LOGO (Centralizado ou à esquerda, conforme sua preferência) */}
         <View style={navStyles.leftSection}>
-          <View style={[navStyles.logoBadge, { backgroundColor: theme.accent }]}>
-            <Text style={navStyles.logoBadgeText}>B</Text>
-          </View>
+          <MaterialCommunityIcons name="shield-check" size={24} color={theme.accent} />
           <Text style={[navStyles.logoText, { color: theme.text }]}>
-            Byte<Text style={{ color: theme.accent }}>bank</Text>
+            BYTE<Text style={{ color: theme.accent }}>BANK</Text>
           </Text>
         </View>
 
-        {/* Lado Direito: Ações */}
+        {/* LADO DIREITO: NOTIFICAÇÕES + PERFIL */}
         <View style={navStyles.rightSection}>
           
-          {/* BOTÃO DE SAIR (Substituído o de pesquisa) */}
-          <TouchableOpacity 
-            style={navStyles.iconBtn} 
-            onPress={handleLogout}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="log-out-outline" size={24} color="#EF4444" /> 
-          </TouchableOpacity>
-
           {/* Notificações */}
-          <TouchableOpacity style={navStyles.iconBtn}>
-            <Ionicons name="notifications-outline" size={22} color={theme.subText} />
+          <TouchableOpacity style={navStyles.iconBtn} activeOpacity={0.7}>
+            <Ionicons name="notifications-outline" size={24} color={theme.text} />
             <View style={navStyles.notifDot} />
           </TouchableOpacity>
 
-          {/* Avatar do Usuário */}
-          <View style={[navStyles.userAvatar, { backgroundColor: theme.accent }]}>
-            <Text style={navStyles.avatarText}>BS</Text>
-          </View>
+          {/* AVATAR DO USUÁRIO (CLICÁVEL) */}
+          <TouchableOpacity 
+            style={navStyles.profileBtn} 
+            onPress={() => navigation.navigate('Profile')}
+            activeOpacity={0.8}
+          >
+            <View style={[navStyles.userAvatar, { borderColor: theme.border }]}>
+              {user?.photoURL ? (
+                <Image source={{ uri: user.photoURL }} style={navStyles.avatarImage} />
+              ) : (
+                <View style={[navStyles.avatarFallback, { backgroundColor: theme.accent }]}>
+                  <Text style={navStyles.avatarText}>{userInitial}</Text>
+                </View>
+              )}
+            </View>
+            {/* Indicador de que é um menu/clicável */}
+            <Ionicons name="chevron-down" size={12} color={theme.subText} style={navStyles.chevron} />
+          </TouchableOpacity>
+
         </View>
       </View>
     </View>
@@ -84,17 +63,14 @@ const Navbar: React.FC<NavbarProps> = ({ theme }) => {
 
 const navStyles = StyleSheet.create({
   topbar: {
-    // Importante para ficar fixo no topo
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    // Altura dinâmica conforme o sistema
     height: Platform.OS === 'ios' ? 110 : 90,
     borderBottomWidth: 1,
     paddingTop: Platform.OS === 'ios' ? 45 : 25,
     justifyContent: 'center',
-    // Z-index alto para não ser coberto pelo conteúdo do ScrollView
     zIndex: 1000, 
     elevation: 10, 
   },
@@ -104,16 +80,15 @@ const navStyles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
   },
-  leftSection: { flexDirection: 'row', alignItems: 'center' },
-  logoBadge: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 10 },
-  logoBadgeText: { color: '#FFF', fontWeight: '900', fontSize: 16 },
-  logoText: { fontSize: 20, fontWeight: '800' },
-  rightSection: { flexDirection: 'row', alignItems: 'center' },
-  iconBtn: { padding: 8, marginLeft: 4 },
+  leftSection: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  logoText: { fontSize: 18, fontWeight: '900', letterSpacing: 1 },
+  
+  rightSection: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  iconBtn: { padding: 4 },
   notifDot: { 
     position: 'absolute', 
-    top: 8, 
-    right: 8, 
+    top: 4, 
+    right: 4, 
     width: 8, 
     height: 8, 
     backgroundColor: '#EF4444', 
@@ -121,8 +96,21 @@ const navStyles = StyleSheet.create({
     borderWidth: 1.5, 
     borderColor: '#FFF' 
   },
-  userAvatar: { width: 36, height: 36, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
-  avatarText: { color: '#FFF', fontWeight: 'bold', fontSize: 13 },
+
+  // Estilo do Perfil no Navbar
+  profileBtn: { flexDirection: 'row', alignItems: 'flex-end', marginLeft: 5 },
+  userAvatar: { 
+    width: 38, 
+    height: 38, 
+    borderRadius: 12, 
+    borderWidth: 1, 
+    overflow: 'hidden',
+    backgroundColor: '#F1F5F9'
+  },
+  avatarImage: { width: '100%', height: '100%' },
+  avatarFallback: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
+  avatarText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
+  chevron: { marginLeft: -6, marginBottom: -2, backgroundColor: '#F8FAFC', borderRadius: 10 }
 });
 
 export default Navbar;

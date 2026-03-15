@@ -1,7 +1,12 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+
+// Ignoramos o aviso do TypeScript, pois sabemos que a função funciona nativamente
+// @ts-ignore
+import { initializeAuth, getReactNativePersistence } from "firebase/auth";
+
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDB7I0nE7I9KQcZv9ZBQndBldgxwzW8STc",
@@ -14,6 +19,12 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-export const auth = getAuth(app);
+export const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(AsyncStorage)
+});
+
 export const db = getFirestore(app);
-export const storage = getStorage(app);
+
+// --- CORREÇÃO AQUI ---
+// Forçamos o Firebase a olhar para o bucket correto usando o protocolo gs://
+export const storage = getStorage(app, "gs://tech-challenge-fiap-77d29.firebasestorage.app");
