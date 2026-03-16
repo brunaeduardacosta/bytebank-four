@@ -1,54 +1,57 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Dimensions,
-  Animated,
-  StatusBar,
-  Platform,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import React, { useState, useMemo, useEffect, useRef } from "react";
+import { View, Text, ScrollView, TouchableOpacity, StatusBar, Platform, Animated } from "react-native";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
-// Contextos
 import { useAuth } from "../context/AuthContext";
 import { useTransactions } from "../context/TransactionContext";
+import { useGoals } from "../context/GoalsContext"; 
 import Navbar from "../components/ui/Navbar";
+import { styles } from './DashboardScreen.styles'; 
 
-// --- CONSTANTES ---
-const { width: screenWidth } = Dimensions.get("window");
 const NAVBAR_HEIGHT = Platform.OS === 'ios' ? 110 : 90;
 
-const Themes = {
-  light: { bg: "#F8FAFC", card: "#FFFFFF", text: "#1F2937", subText: "#6B7280", border: "#E2E8F0", accent: "#47A138", tab: "#F1F5F9" },
-  dark: { bg: "#0F172A", card: "#1E293B", text: "#F8FAFC", subText: "#94A3B8", border: "#334155", accent: "#4ADE80", tab: "#334155" }
-};
-
-export default function MobileDashboardScreen({ navigation }: any) {
-  // Mantive o estado para o tema, embora o botão tenha sido removido do header
-  const [isDarkMode] = useState(false); 
+export default function DashboardScreen({ navigation }: any) {
   const [showValue, setShowValue] = useState(true);
   
   const { user } = useAuth();
   const { balance, transactions } = useTransactions();
+  const { goals } = useGoals(); 
   
-  const theme = isDarkMode ? Themes.dark : Themes.light;
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const firstName = user?.displayName ? user.displayName.split(' ')[0] : 'Arthur';
 
-  const firstName = user?.displayName ? user.displayName.split(' ')[0] : 'Visitante';
-
-  const totalDespesas = useMemo(() => {
-    return transactions
+  // Lógica das Receitas e Despesas
+  const { totalReceitas, totalDespesas } = useMemo(() => {
+    const receitas = transactions
+      .filter(t => t.type === 'receita')
+      .reduce((acc, curr) => acc + curr.amount, 0);
+      
+    const despesas = transactions
       .filter(t => t.type === 'despesa')
       .reduce((acc, curr) => acc + curr.amount, 0);
+      
+    return { totalReceitas: receitas, totalDespesas: despesas };
   }, [transactions]);
 
-  const metaReserva = 10000;
-  const progressoDecimal = balance > 0 ? Math.min(balance / metaReserva, 1) : 0;
+  const transacoesRecentes = transactions.slice(0, 4);
+
+  const formatCurrency = (value: number) => {
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
+  // --- LÓGICA DA META FIXADA (FAVORITA) ---
+  const principalGoal = useMemo(() => {
+    if (!goals || goals.length === 0) return null;
+    // Procura a meta favoritada. Se não achar nenhuma, pega a primeira da lista.
+    return goals.find(g => g.isPinned) || goals[0];
+  }, [goals]);
+
+  const progressoDecimal = principalGoal && principalGoal.targetAmount > 0 
+    ? Math.min(principalGoal.currentAmount / principalGoal.targetAmount, 1) 
+    : 0;
   const progressoPorcentagem = (progressoDecimal * 100).toFixed(0);
 
+  // Animação da barra de progresso
   useEffect(() => {
     progressAnim.setValue(0);
     Animated.timing(progressAnim, {
@@ -63,128 +66,115 @@ export default function MobileDashboardScreen({ navigation }: any) {
     outputRange: ["0%", "100%"],
   });
 
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  };
-
   return (
-    <View style={[styles.container, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor="transparent" translucent />
-      
-      <Navbar theme={theme} />
-
-      <ScrollView 
-        showsVerticalScrollIndicator={false} 
-        contentContainerStyle={[styles.scrollContent, { paddingTop: NAVBAR_HEIGHT + 20 }]}
-      >
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+      <Navbar theme={{ card: '#FFF', border: '#E2E8F0', text: '#1F2937', accent: '#47A138', subText: '#6B7280' }} />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingTop: NAVBAR_HEIGHT + 20 }]}>
         
-        {/* APENAS O CUMPRIMENTO */}
         <View style={styles.welcomeSection}>
-          <Text style={[styles.greeting, { color: theme.text }]}>Olá, {firstName}!</Text>
-          <Text style={[styles.subGreeting, { color: theme.subText }]}>Sua vida financeira hoje</Text>
+          <Text style={styles.greeting}>Visão Geral</Text>
+          <Text style={styles.subGreeting}>{`Março de 2026 • ${firstName}`}</Text>
         </View>
 
-        {/* CARD DE SALDO TOTAL */}
-        <TouchableOpacity 
-          activeOpacity={0.9}
-          onPress={() => navigation.navigate('ResumoFinanceiro')}
-          style={[styles.balanceCard, { backgroundColor: theme.card, borderColor: theme.border }]}
-        >
-          <View style={styles.rowBetween}>
-            <Text style={[styles.balanceLabel, { color: theme.subText }]}>Saldo total disponível</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TouchableOpacity onPress={() => setShowValue(!showValue)} hitSlop={{top: 15, bottom: 15, left: 15, right: 15}} style={{ marginRight: 15 }}>
-                <Ionicons name={showValue ? "eye-outline" : "eye-off-outline"} size={22} color={theme.subText} />
-              </TouchableOpacity>
-              <Ionicons name="chevron-forward" size={20} color={theme.accent} />
-            </View>
-          </View>
-          <Text style={[styles.balanceValue, { color: theme.text }]}>{showValue ? formatCurrency(balance) : "••••••"}</Text>
-          <View style={{ marginTop: 8 }}>
-             <Text style={[styles.smallText, { color: theme.accent, fontWeight: '700' }]}>Ver resumo detalhado</Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* RESERVA DE EMERGÊNCIA */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <View style={styles.rowBetween}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>Reserva de Emergência</Text>
-            <Text style={[styles.percentageText, { color: theme.accent }]}>{progressoPorcentagem}%</Text>
-          </View>
-          <View style={[styles.progressTrack, { backgroundColor: isDarkMode ? "#334155" : "#E2E8F0" }]}>
-            <Animated.View style={[styles.progressFill, { backgroundColor: theme.accent, width: progressWidth }]} />
-          </View>
-          <View style={styles.rowBetween}>
-            <Text style={[styles.smallText, { color: theme.subText }]}>{formatCurrency(balance > 0 ? balance : 0)}</Text>
-            <Text style={[styles.smallText, { color: theme.subText }]}>Alvo: {formatCurrency(metaReserva)}</Text>
-          </View>
-        </View>
-
-        {/* BOTÕES DE AÇÃO RÁPIDA */}
-        <View style={styles.quickActionsContainer}>
-          <QuickAction icon="swap-horizontal-outline" label="Pix" theme={theme} onPress={() => navigation.navigate('Transferencia')} />
-          <QuickAction icon="receipt-outline" label="Extrato" theme={theme} onPress={() => navigation.navigate('Statement')} />
-          <QuickAction icon="cash-outline" label="Empréstimo" theme={theme} onPress={() => navigation.navigate('Emprestimo')} />
-          <QuickAction icon="rocket-outline" label="Investir" theme={theme} onPress={() => {}} />
-          <QuickAction icon="shield-checkmark-outline" label="Seguros" theme={theme} onPress={() => {}} />
-        </View>
-
-        {/* GASTOS TOTAIS */}
-        <TouchableOpacity style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]} activeOpacity={0.9}>
-          <View style={styles.rowBetween}>
-             <Text style={[styles.cardTitle, { color: theme.text }]}>Total de Despesas</Text>
-             <Ionicons name="trending-down-outline" size={20} color="#EF4444" />
-          </View>
-          <View style={[styles.rowBetween, { marginTop: 15 }]}>
-            <View>
-              <Text style={[styles.smallText, { color: theme.subText }]}>Saídas registradas</Text>
-              <Text style={[styles.bigValue, { color: theme.text }]}>{formatCurrency(totalDespesas)}</Text>
-            </View>
-            <TouchableOpacity style={[styles.payBtn, { backgroundColor: theme.accent }]} onPress={() => navigation.navigate('TransactionForm')}>
-              <Text style={styles.payBtnText}>Nova</Text>
+        <View style={styles.balanceSection}>
+          <Text style={styles.balanceLabel}>Saldo Atual</Text>
+          <View style={styles.rowCenter}>
+            <Text style={styles.balanceValue}>{showValue ? formatCurrency(balance) : "R$ ••••••"}</Text>
+            <TouchableOpacity onPress={() => setShowValue(!showValue)} style={{ marginLeft: 15 }}>
+              <Ionicons name={showValue ? "eye-outline" : "eye-off-outline"} size={24} color="#6B7280" />
             </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+        </View>
 
+        <View style={styles.summaryContainer}>
+          <View style={[styles.summaryCard, { borderColor: '#E2E8F0' }]}>
+            <View style={[styles.iconArea, { backgroundColor: '#DCFCE7' }]}>
+              <Ionicons name="arrow-up" size={20} color="#16A34A" />
+            </View>
+            <Text style={styles.summaryTitle}>Receitas</Text>
+            <Text style={[styles.summaryAmount, { color: '#16A34A' }]}>{showValue ? formatCurrency(totalReceitas) : "••••••"}</Text>
+          </View>
+          <View style={[styles.summaryCard, { borderColor: '#E2E8F0' }]}>
+            <View style={[styles.iconArea, { backgroundColor: '#FEE2E2' }]}>
+              <Ionicons name="arrow-down" size={20} color="#DC2626" />
+            </View>
+            <Text style={styles.summaryTitle}>Despesas</Text>
+            <Text style={[styles.summaryAmount, { color: '#DC2626' }]}>{showValue ? formatCurrency(totalDespesas) : "••••••"}</Text>
+          </View>
+        </View>
+
+        {/* CARD DA META FAVORITA */}
+        {principalGoal && (
+          <View style={[styles.summaryCard, { marginHorizontal: 20, marginBottom: 25, borderColor: '#E2E8F0' }]}>
+            <View style={styles.rowBetween}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="star" size={16} color="#F59E0B" style={{ marginRight: 6 }} />
+                <Text style={styles.sectionTitle}>{principalGoal.title}</Text>
+              </View>
+              <Text style={{ fontWeight: 'bold', fontSize: 14, color: principalGoal.color }}>
+                {progressoPorcentagem}%
+              </Text>
+            </View>
+            
+            <View style={{ height: 10, borderRadius: 5, marginVertical: 14, backgroundColor: '#F1F5F9', overflow: 'hidden' }}>
+              <Animated.View style={{ height: '100%', borderRadius: 5, backgroundColor: principalGoal.color, width: progressWidth }} />
+            </View>
+            
+            <View style={styles.rowBetween}>
+              <Text style={{ fontSize: 12, fontWeight: '500', color: '#6B7280' }}>Guardado: {formatCurrency(principalGoal.currentAmount)}</Text>
+              <Text style={{ fontSize: 12, fontWeight: '500', color: '#6B7280' }}>Alvo: {formatCurrency(principalGoal.targetAmount)}</Text>
+            </View>
+          </View>
+        )}
+
+        <View style={styles.quickActionsContainer}>
+          <QuickAction icon="plus" label="Receita" color="#16A34A" onPress={() => navigation.navigate('TransactionForm', { type: 'receita' })} />
+          <QuickAction icon="minus" label="Despesa" color="#DC2626" onPress={() => navigation.navigate('TransactionForm', { type: 'despesa' })} />
+          <QuickAction icon="bullseye-arrow" label="Metas" color="#47A138" onPress={() => navigation.navigate('Goals')} />
+          <QuickAction icon="chart-pie" label="Relatórios" color="#47A138" onPress={() => navigation.navigate('ResumoFinanceiro')} />
+        </View>
+
+        <View style={styles.recentSection}>
+          <View style={styles.rowBetween}>
+            <Text style={styles.sectionTitle}>Atividade Recente</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Statement')}>
+              <Text style={styles.seeAllText}>Ver tudo</Text>
+            </TouchableOpacity>
+          </View>
+          {transacoesRecentes.length === 0 ? (
+            <View style={{ padding: 30, alignItems: 'center', backgroundColor: '#FFF', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0' }}>
+              <Text style={{ color: '#94A3B8', fontWeight: '500' }}>Nenhuma transação este mês.</Text>
+            </View>
+          ) : (
+            transacoesRecentes.map((item, index) => (
+              <View key={index} style={styles.transactionItem}>
+                <View style={styles.transactionLeft}>
+                  <View style={[styles.catIcon, { backgroundColor: item.type === 'receita' ? '#DCFCE7' : '#F1F5F9' }]}>
+                    <MaterialCommunityIcons name={item.type === 'receita' ? "cash-plus" : "shopping-outline"} size={24} color={item.type === 'receita' ? '#16A34A' : '#6B7280'} />
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#1F2937', marginBottom: 2 }}>{item.description}</Text>
+                    <Text style={{ fontSize: 12, color: '#94A3B8', fontWeight: '500' }}>{item.date instanceof Date ? item.date.toLocaleDateString('pt-BR') : (item.date ? String(item.date) : 'Hoje')}</Text>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 15, fontWeight: 'bold', color: item.type === 'receita' ? '#16A34A' : '#1F2937' }}>{`${item.type === 'receita' ? '+' : '-'} ${formatCurrency(item.amount)}`}</Text>
+              </View>
+            ))
+          )}
+        </View>
       </ScrollView>
     </View>
   );
 }
 
-function QuickAction({ icon, label, theme, onPress }: any) {
+function QuickAction({ icon, label, color, onPress }: any) {
   return (
     <View style={styles.actionItem}>
-      <TouchableOpacity style={[styles.iconCircle, { backgroundColor: theme.tab }]} activeOpacity={0.6} onPress={onPress}>
-        <Ionicons name={icon} size={24} color={theme.accent} />
+      <TouchableOpacity style={styles.actionCircle} activeOpacity={0.6} onPress={onPress}>
+        <MaterialCommunityIcons name={icon} size={26} color={color} />
       </TouchableOpacity>
-      <Text style={[styles.actionText, { color: theme.text }]} numberOfLines={1}>{label}</Text>
+      <Text style={styles.actionText}>{label}</Text>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scrollContent: { paddingBottom: 40 },
-  // ESTILO SIMPLIFICADO PARA O TEXTO
-  welcomeSection: { paddingHorizontal: 25, marginBottom: 25 },
-  greeting: { fontSize: 24, fontWeight: "800", letterSpacing: -0.5 },
-  subGreeting: { fontSize: 14, marginTop: 2, opacity: 0.8 },
-  
-  balanceCard: { marginHorizontal: 20, padding: 25, borderRadius: 30, marginBottom: 20, borderWidth: 1 },
-  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  balanceLabel: { fontSize: 14, fontWeight: '600' },
-  balanceValue: { fontSize: 34, fontWeight: "900", marginTop: 8, letterSpacing: -0.5 },
-  card: { marginHorizontal: 20, padding: 22, borderRadius: 24, marginBottom: 16, borderWidth: 1 },
-  cardTitle: { fontWeight: "700", fontSize: 16 },
-  progressTrack: { height: 10, borderRadius: 5, marginVertical: 14, overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 5 },
-  percentageText: { fontWeight: 'bold', fontSize: 14 },
-  quickActionsContainer: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 15, paddingVertical: 15, marginBottom: 10 },
-  actionItem: { alignItems: 'center', width: (screenWidth - 30) / 5.2 },
-  iconCircle: { width: 54, height: 54, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
-  actionText: { fontSize: 10, fontWeight: '700', textAlign: 'center' },
-  smallText: { fontSize: 12, fontWeight: '500' },
-  bigValue: { fontSize: 24, fontWeight: "800", marginTop: 4 },
-  payBtn: { paddingHorizontal: 22, paddingVertical: 12, borderRadius: 14 },
-  payBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 14 }
-});

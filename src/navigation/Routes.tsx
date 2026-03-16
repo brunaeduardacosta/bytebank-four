@@ -16,16 +16,13 @@ import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import WelcomeScreen from '../screens/WelcomeScreen';
 import StatementScreen from '../screens/StatementScreen';
-import ProfileScreen from '../screens/ProfileScreen'; 
+import ProfileScreen from '../screens/ProfileScreen';
+import GoalsScreen from '../screens/GoalScreen'; 
+import GoalFormScreen from '../screens/GoalFormScreen';
 
 const Drawer = createDrawerNavigator();
 const Stack = createNativeStackNavigator();
 
-/**
- * --- HomeStack ---
- * Agora o Perfil mora aqui dentro para o botão de "Voltar" funcionar 
- * igual ao da tela de Empréstimo.
- */
 function HomeStack() {
   return (
     <Stack.Navigator id="home-stack" screenOptions={{ headerShown: false }}>
@@ -35,9 +32,9 @@ function HomeStack() {
       <Stack.Screen name="ResumoFinanceiro" component={ResumoScreen} /> 
       <Stack.Screen name="Transferencia" component={TransferenciaScreen} /> 
       <Stack.Screen name="Emprestimo" component={EmprestimoScreen} /> 
-      
-      {/* INSERÇÃO DO PERFIL NA PILHA (STACK) */}
       <Stack.Screen name="Profile" component={ProfileScreen} /> 
+      <Stack.Screen name="Goals" component={GoalsScreen} /> 
+      <Stack.Screen name="GoalForm" component={GoalFormScreen} options={{ presentation: 'modal' }} />
     </Stack.Navigator>
   );
 }
@@ -113,17 +110,11 @@ export default function Routes() {
         }} 
       />
 
-      {/* A rota 'Home' agora engloba Dashboard e Perfil */}
       <Drawer.Screen 
         name="Home" 
         component={HomeStack} 
         options={{ title: 'Início' }} 
       />
-      
-      {/* Dica: Removi a ProfileScreen direta do Drawer. 
-          Agora o acesso será pelo avatar do Dashboard, 
-          garantindo que ela sempre tenha de onde "voltar".
-      */}
 
       <Drawer.Screen 
         name="Settings" 
