@@ -1,8 +1,8 @@
 import { initializeApp } from "firebase/app";
+import { Platform } from "react-native";
 
-// Ignoramos o aviso do TypeScript, pois sabemos que a função funciona nativamente
 // @ts-ignore
-import { initializeAuth, getReactNativePersistence } from "firebase/auth";
+import { initializeAuth, getReactNativePersistence, browserLocalPersistence } from "firebase/auth";
 
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
@@ -19,12 +19,15 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
+// --- CORREÇÃO AQUI ---
+// Verifica a plataforma para usar a persistência correta
 export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage)
+  persistence: Platform.OS === 'web' 
+    ? browserLocalPersistence 
+    : getReactNativePersistence(AsyncStorage)
 });
 
 export const db = getFirestore(app);
 
-// --- CORREÇÃO AQUI ---
 // Forçamos o Firebase a olhar para o bucket correto usando o protocolo gs://
 export const storage = getStorage(app, "gs://tech-challenge-fiap-77d29.firebasestorage.app");
