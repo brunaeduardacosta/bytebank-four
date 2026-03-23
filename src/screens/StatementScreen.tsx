@@ -1,247 +1,151 @@
-import React, { useState, useMemo } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  FlatList, 
-  Pressable, 
-  SafeAreaView, 
-  StatusBar,
-  ActivityIndicator
-} from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native'; // Removido SafeAreaView daqui
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTransactions } from '../context/TransactionContext';
-import { COLORS } from '../theme';
+import { useTheme } from '../context/ThemeContext'; 
+import { SafeAreaView } from 'react-native-safe-area-context'; // Import correto para aceitar 'edges'
 
 export default function StatementScreen({ navigation }: any) {
   const { transactions } = useTransactions();
-  
-  // Estado para controlar o filtro ativo
-  const [activeFilter, setActiveFilter] = useState<'tudo' | 'receita' | 'despesa'>('tudo');
-  
-  // Estado para simular o carregamento do Scroll Infinito
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const { colors } = useTheme(); 
+  const [filter, setFilter] = useState<'all' | 'receita' | 'despesa'>('all');
 
-  // Filtra as transações com base no botão selecionado
-  const filteredTransactions = useMemo(() => {
-    if (activeFilter === 'tudo') return transactions;
-    return transactions.filter(t => t.type === activeFilter);
-  }, [transactions, activeFilter]);
+  const filteredTransactions = transactions.filter(t => filter === 'all' || t.type === filter);
 
-  // Função que será chamada quando o usuário chegar ao fim da lista (Scroll Infinito)
-  const loadMoreTransactions = () => {
-    if (isLoadingMore) return;
-    
-    // Aqui no futuro conectaremos com a paginação real do Firebase
-    setIsLoadingMore(true);
-    setTimeout(() => {
-      setIsLoadingMore(false);
-    }, 1500);
+  const formatCurrency = (value: number | undefined | null) => {
+    const safeValue = value ?? 0; 
+    return safeValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  // Componente visual de cada item da lista
-  const renderItem = ({ item }: { item: any }) => {
-    const isIncome = item.type === 'receita';
-    
+  const FilterButton = ({ title, type }: { title: string, type: 'all' | 'receita' | 'despesa' }) => {
+    const isActive = filter === type;
     return (
-      <Pressable 
-        style={styles.card}
-        // No futuro, ao clicar aqui, abriremos a tela de Edição
-        onPress={() => console.log('Editar transação:', item.id)}
+      <TouchableOpacity 
+        style={[
+          styles.filterBtn, 
+          isActive 
+            ? { backgroundColor: colors.accent, borderColor: colors.accent } 
+            : { backgroundColor: colors.card, borderColor: colors.border }
+        ]} 
+        onPress={() => setFilter(type)}
       >
-        <View style={[styles.iconContainer, { backgroundColor: isIncome ? '#E8F5E9' : '#FFEBEE' }]}>
-          <MaterialCommunityIcons 
-            name={isIncome ? "arrow-top-right" : "arrow-bottom-left"} 
-            size={24} 
-            color={isIncome ? "#2E7D32" : "#C62828"} 
-          />
-        </View>
-        
-        <View style={styles.detailsContainer}>
-          <Text style={styles.description} numberOfLines={1}>{item.description}</Text>
-          <Text style={styles.category}>{item.category || 'Geral'}</Text>
-        </View>
-
-        <View style={styles.valueContainer}>
-          <Text style={[styles.amount, { color: isIncome ? "#2E7D32" : "#C62828" }]}>
-            {isIncome ? '+' : '-'} R$ {item.amount.toFixed(2)}
-          </Text>
-          {/* Formatação provisória de data */}
-          <Text style={styles.date}>14 Mar</Text> 
-        </View>
-      </Pressable>
+        <Text style={[styles.filterText, isActive ? { color: '#FFF' } : { color: colors.textSecondary }]}>
+          {title}
+        </Text>
+      </TouchableOpacity>
     );
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+    // 🚀 Adicionado edges=['top'] e o estilo flex: 1
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       
-      {/* HEADER */}
-      <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <MaterialCommunityIcons name="chevron-left" size={32} color={COLORS.primary} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Extrato</Text>
-        <View style={{ width: 40 }} /> 
+      {/* HEADER PADRONIZADO (Altura de 60px) */}
+      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Extrato Completo</Text>
+        <View style={styles.headerBtn} /> 
       </View>
 
-      {/* FILTROS (CHIPS) */}
-      <View style={styles.filterContainer}>
-        <FilterChip 
-          label="Tudo" 
-          isActive={activeFilter === 'tudo'} 
-          onPress={() => setActiveFilter('tudo')} 
-        />
-        <FilterChip 
-          label="Entradas" 
-          isActive={activeFilter === 'receita'} 
-          onPress={() => setActiveFilter('receita')} 
-        />
-        <FilterChip 
-          label="Saídas" 
-          isActive={activeFilter === 'despesa'} 
-          onPress={() => setActiveFilter('despesa')} 
-        />
+      <View style={[styles.filterContainer, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+        <FilterButton title="Tudo" type="all" />
+        <FilterButton title="Receitas" type="receita" />
+        <FilterButton title="Despesas" type="despesa" />
       </View>
 
-      {/* LISTA OTIMIZADA COM SCROLL INFINITO */}
       <FlatList
         data={filteredTransactions}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
+        keyExtractor={(item) => item.id || Math.random().toString()}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        
-        // Lógica de Scroll Infinito
-        onEndReached={loadMoreTransactions}
-        onEndReachedThreshold={0.1} // Aciona quando chegar a 10% do fim da lista
-        
-        // Loading no rodapé da lista
-        ListFooterComponent={
-          isLoadingMore ? <ActivityIndicator size="small" color={COLORS.primary} style={{ margin: 20 }} /> : null
-        }
-        
-        // Estado Vazio
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <MaterialCommunityIcons name="text-box-search-outline" size={60} color="#CCC" />
-            <Text style={styles.emptyText}>Nenhuma transação encontrada.</Text>
+          <View style={styles.emptyContainer}>
+            <MaterialCommunityIcons name="text-box-search-outline" size={60} color={colors.border} />
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Nenhuma transação encontrada.</Text>
           </View>
         }
+        renderItem={({ item }) => (
+          <TouchableOpacity 
+            activeOpacity={0.7}
+            onPress={() => {
+              navigation.navigate('TransactionForm', { 
+                transaction: {
+                  ...item,
+                  date: item.date instanceof Date ? item.date.toISOString() : String(item.date)
+                }, 
+                type: item.type 
+              });
+            }}
+            style={[styles.transactionItem, { backgroundColor: colors.card, borderColor: colors.border }]}
+          >
+            <View style={styles.transactionLeft}>
+              <View style={[styles.catIcon, { backgroundColor: item.type === 'receita' ? 'rgba(22, 163, 74, 0.15)' : 'rgba(220, 38, 38, 0.15)' }]}>
+                <MaterialCommunityIcons 
+                  name={item.type === 'receita' ? "cash-plus" : "shopping-outline"} 
+                  size={24} 
+                  color={item.type === 'receita' ? '#16A34A' : '#DC2626'} 
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.transactionDesc, { color: colors.text }]} numberOfLines={1}>{item.description}</Text>
+                <Text style={[styles.transactionCat, { color: colors.textSecondary }]}>
+                  {item.category} • {item.date instanceof Date ? item.date.toLocaleDateString('pt-BR') : 'Hoje'}
+                </Text>
+              </View>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+                <Text style={[styles.transactionAmount, { color: item.type === 'receita' ? '#16A34A' : colors.text }]}>
+                  {item.type === 'receita' ? '+' : '-'} {formatCurrency(item.amount)}
+                </Text>
+                {item.receiptUrl && (
+                    <Ionicons name="attach" size={16} color={colors.textSecondary} style={{ marginTop: 4 }} />
+                )}
+            </View>
+          </TouchableOpacity>
+        )}
       />
     </SafeAreaView>
   );
 }
 
-// Componente para os botões de filtro
-function FilterChip({ label, isActive, onPress }: any) {
-  return (
-    <Pressable 
-      style={[styles.chip, isActive && styles.chipActive]} 
-      onPress={onPress}
-    >
-      <Text style={[styles.chipText, isActive && styles.chipTextActive]}>{label}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FA' },
+  container: { flex: 1 },
+  // 🚀 Header ajustado para 60px de altura
   header: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     justifyContent: 'space-between', 
-    paddingHorizontal: 15, 
-    paddingVertical: 15, 
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0'
+    height: 60,
+    paddingHorizontal: 15,
+    borderBottomWidth: 1 
   },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-  backBtn: { padding: 5 },
-  
-  filterContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: '#FFF',
-  },
-  chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#F0F0F0',
-    marginRight: 10,
-  },
-  chipActive: {
-    backgroundColor: COLORS.primary,
-  },
-  chipText: {
-    color: '#666',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  chipTextActive: {
-    color: '#FFF',
-  },
-
+  headerBtn: { width: 40, alignItems: 'center' },
+  headerTitle: { fontSize: 18, fontWeight: 'bold' },
+  filterContainer: { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1 },
+  filterBtn: { paddingHorizontal: 18, paddingVertical: 6, borderRadius: 20, marginRight: 10, borderWidth: 1 },
+  filterText: { fontSize: 13, fontWeight: '700' },
   listContent: { padding: 20, paddingBottom: 100 },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-    padding: 15,
-    borderRadius: 16,
-    marginBottom: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+  transactionItem: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    padding: 16, 
+    borderRadius: 20, 
+    marginBottom: 12, 
+    borderWidth: 1, 
+    elevation: 2, 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 2 }, 
+    shadowOpacity: 0.05, 
+    shadowRadius: 5 
   },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  detailsContainer: {
-    flex: 1,
-    marginLeft: 15,
-  },
-  description: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  category: {
-    fontSize: 13,
-    color: '#888',
-  },
-  valueContainer: {
-    alignItems: 'flex-end',
-  },
-  amount: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  date: {
-    fontSize: 12,
-    color: '#999',
-    marginTop: 4,
-  },
-  
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 60,
-  },
-  emptyText: {
-    marginTop: 15,
-    fontSize: 16,
-    color: '#999',
-  }
+  transactionLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 10 },
+  catIcon: { width: 48, height: 48, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
+  transactionDesc: { fontSize: 16, fontWeight: 'bold', marginBottom: 2 },
+  transactionCat: { fontSize: 12, fontWeight: '500' },
+  transactionAmount: { fontSize: 15, fontWeight: 'bold' },
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', marginTop: 50 },
+  emptyText: { marginTop: 15, fontSize: 16, fontWeight: '500' }
 });

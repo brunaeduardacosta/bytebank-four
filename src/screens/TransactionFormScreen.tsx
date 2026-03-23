@@ -1,263 +1,275 @@
 import React, { useState } from 'react';
-import { 
-  View, Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, 
-  KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Image, ScrollView
-} from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Image, Alert, ActivityIndicator } from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
-import { storage } from '../services/firebase'; 
+import { SafeAreaView } from 'react-native-safe-area-context'; // Import correto
+
+// Firebase Storage para os recibos
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useTransactions } from '../context/TransactionContext';
+import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
-// --- LISTAS DE CATEGORIAS PADRÃO ---
-const EXPENSE_CATEGORIES = ['Alimentação', 'Transporte', 'Moradia', 'Saúde', 'Lazer', 'Educação', 'Contas', 'Compras'];
-const INCOME_CATEGORIES = ['Salário', 'Pix', 'Investimentos', 'Vendas', 'Cashback', 'Outros'];
+const CATEGORIAS_RECEITA = [
+  { id: 'salario', label: 'Salário', icon: 'cash' },
+  { id: 'freelance', label: 'Freelance', icon: 'laptop' },
+  { id: 'investimento', label: 'Investimento', icon: 'trending-up' },
+  { id: 'presente', label: 'Presente', icon: 'gift' },
+  { id: 'venda', label: 'Venda de Item', icon: 'tag-outline' },
+  { id: 'outros_rec', label: 'Outros', icon: 'dots-horizontal' },
+];
 
-export default function TransactionFormScreen({ navigation }: any) {
-  const { addTransaction } = useTransactions();
-  
-  // Estados de Dados
-  const [type, setType] = useState<'receita' | 'despesa'>('despesa');
-  const [amount, setAmount] = useState('');
-  const [description, setDescription] = useState('');
-  
-  // Estados de Categoria
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [isCustomCategory, setIsCustomCategory] = useState(false);
-  const [customCategoryText, setCustomCategoryText] = useState('');
-  
-  // Estados de Arquivo/UX
-  const [receiptImage, setReceiptImage] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+const CATEGORIAS_DESPESA = [
+  { id: 'alimentacao', label: 'Alimentação', icon: 'food' },
+  { id: 'mercado', label: 'Supermercado', icon: 'cart-outline' },
+  { id: 'transporte', label: 'Transporte', icon: 'car' },
+  { id: 'combustivel', label: 'Combustível', icon: 'gas-station' },
+  { id: 'lazer', label: 'Lazer/Viagem', icon: 'beach' },
+  { id: 'saude', label: 'Saúde', icon: 'medical-bag' },
+  { id: 'educacao', label: 'Educação', icon: 'school' },
+  { id: 'moradia', label: 'Moradia', icon: 'home' },
+  { id: 'contas', label: 'Contas Fixas', icon: 'file-document-outline' },
+  { id: 'compras', label: 'Vestuário', icon: 'tshirt-crew' },
+  { id: 'assinaturas', label: 'Streaming/Apps', icon: 'youtube-subscription' },
+  { id: 'pets', label: 'Pets', icon: 'dog' },
+  { id: 'outros_desp', label: 'Outros', icon: 'dots-horizontal' },
+];
 
-  // Troca de tipo (limpa a categoria ao trocar entre receita/despesa)
-  const handleTypeChange = (newType: 'receita' | 'despesa') => {
-    setType(newType);
-    setSelectedCategory('');
-    setIsCustomCategory(false);
-    setCustomCategoryText('');
+export default function TransactionFormScreen({ route, navigation }: any) {
+  const { type, transaction } = route.params;
+  const isEditing = !!transaction;
+
+  const { user } = useAuth();
+  const { addTransaction, updateTransaction, deleteTransaction } = useTransactions();
+  const { colors } = useTheme();
+
+  const [description, setDescription] = useState(transaction?.description || '');
+  const [amount, setAmount] = useState(transaction?.amount ? 
+    transaction.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '');
+  const [selectedCategory, setSelectedCategory] = useState(transaction?.category || '');
+  const [receiptImage, setReceiptImage] = useState<string | null>(transaction?.receiptUrl || null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const isReceita = type === 'receita';
+  const mainColor = isReceita ? '#16A34A' : '#DC2626';
+  const bgColor = isReceita ? 'rgba(22, 163, 74, 0.1)' : 'rgba(220, 38, 38, 0.1)';
+  const categoriasAtuais = isReceita ? CATEGORIAS_RECEITA : CATEGORIAS_DESPESA;
+
+  // Lógica de Máscara Profissional (Direita para Esquerda)
+  const handleMoneyChange = (text: string) => {
+    const numericValue = text.replace(/\D/g, '');
+    const floatValue = parseFloat(numericValue) / 100;
+    if (!isNaN(floatValue)) {
+      setAmount(floatValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
+    } else { setAmount(''); }
   };
 
-  // Abrir Câmera/Galeria
-  const pickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Ops!', 'Precisamos de permissão para acessar suas fotos.');
-      return;
-    }
-
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.4, 
-      base64: true, 
-    });
-
-    if (!result.canceled && result.assets[0].base64) {
-      setReceiptImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
-    }
+  const handlePickImage = () => {
+    Alert.alert("Anexar Comprovante", "Escolha a origem:", [
+      { text: "Câmera", onPress: async () => {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') return;
+        const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.5 });
+        if (!result.canceled) setReceiptImage(result.assets[0].uri);
+      }},
+      { text: "Galeria", onPress: async () => {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') return;
+        const result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, quality: 0.5 });
+        if (!result.canceled) setReceiptImage(result.assets[0].uri);
+      }},
+      { text: "Cancelar", style: "cancel" }
+    ]);
   };
 
-  // Validação e Envio para o Firebase
+  const handleDelete = () => {
+    Alert.alert("Excluir Transação", "Deseja apagar este registro?", [
+      { text: "Não", style: "cancel" },
+      { text: "Sim", style: "destructive", onPress: async () => {
+          await deleteTransaction(transaction.id);
+          navigation.goBack();
+      }}
+    ]);
+  };
+
   const handleSave = async () => {
-    // 1. Tratamento do Valor (Converte vírgula para ponto e transforma em número)
-    const numericAmount = parseFloat(amount.replace(',', '.'));
-    if (!amount || isNaN(numericAmount) || numericAmount <= 0) {
-      return Alert.alert('Erro', 'Digite um valor numérico válido e maior que zero.');
-    }
+    const numericAmount = parseFloat(amount.replace(/\D/g, '')) / 100;
+    if (!selectedCategory || !numericAmount) return Alert.alert('Atenção', 'Preencha valor e categoria.');
 
-    // 2. Definição da Categoria Final
-    let finalCategory = '';
-    if (isCustomCategory) {
-      if (!customCategoryText.trim()) return Alert.alert('Erro', 'Digite o nome da sua nova categoria.');
-      // Padroniza a primeira letra maiúscula para o banco de dados
-      finalCategory = customCategoryText.trim().charAt(0).toUpperCase() + customCategoryText.trim().slice(1);
-    } else {
-      if (!selectedCategory) return Alert.alert('Erro', 'Selecione uma categoria para a transação.');
-      finalCategory = selectedCategory;
-    }
-
-    // 3. Tratamento da Descrição (Opcional)
-    const finalDescription = description.trim() ? description.trim() : (type === 'receita' ? 'Nova Receita' : 'Nova Despesa');
-
-    setIsLoading(true);
-
+    setIsSaving(true);
     try {
-      let finalReceiptUrl = null;
-
-      // Upload da Imagem (se existir)
-      if (receiptImage) {
-        const filename = `recibos/${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
-        const storageRef = ref(storage, filename);
-        await uploadString(storageRef, receiptImage, 'data_url');
-        finalReceiptUrl = await getDownloadURL(storageRef);
+      let finalReceiptUrl = receiptImage;
+      if (receiptImage && (receiptImage.startsWith('file') || receiptImage.startsWith('ph'))) {
+        const response = await fetch(receiptImage);
+        const blob = await response.blob();
+        const storage = getStorage();
+        const fileRef = ref(storage, `receipts/${user?.uid}/${Date.now()}`);
+        await uploadBytes(fileRef, blob);
+        finalReceiptUrl = await getDownloadURL(fileRef);
       }
 
-      // 4. Salvar no Firestore de forma limpa e estruturada
-      await addTransaction({
-        description: finalDescription,
-        amount: numericAmount,
-        type: type,
-        category: finalCategory,
-      }, finalReceiptUrl || undefined);
+      const payload = {
+          description: description.trim() || 'Sem descrição',
+          amount: numericAmount,
+          type: (isReceita ? 'receita' : 'despesa') as 'receita' | 'despesa',
+          category: selectedCategory,
+          receiptUrl: finalReceiptUrl,
+          };
 
-      Alert.alert('Sucesso!', 'Transação salva com sucesso.');
+      if (isEditing) {
+        await updateTransaction(transaction.id, payload);
+      } else {
+        await addTransaction(payload);
+      }
       navigation.goBack();
     } catch (error) {
-      console.error("Erro ao salvar:", error);
-      Alert.alert('Erro', 'Não foi possível salvar a transação no banco de dados.');
+      Alert.alert("Erro", "Falha ao salvar.");
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
 
-  const currentCategories = type === 'receita' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
-
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <MaterialCommunityIcons name="close" size={28} color="#333" />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      {/* HEADER PADRONIZADO (60px) */}
+      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+          <Ionicons name="close" size={26} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>
+          {isEditing ? 'Editar' : 'Nova'} {isReceita ? 'Receita' : 'Despesa'}
+        </Text>
+        <View style={styles.headerRight}>
+          {isEditing && (
+            <TouchableOpacity onPress={handleDelete} style={{ marginRight: 15 }}>
+              <Ionicons name="trash-outline" size={22} color={colors.danger} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={handlePickImage}>
+            <Ionicons name="camera-outline" size={24} color={mainColor} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Nova Transação</Text>
-          <View style={{ width: 28 }} /> 
         </View>
+      </View>
 
-        <ScrollView contentContainerStyle={styles.formContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
           
-          {/* SELETOR: RECEITA OU DESPESA */}
-          <View style={styles.typeSelector}>
-            <TouchableOpacity style={[styles.typeBtn, type === 'receita' && styles.typeBtnIncome]} onPress={() => handleTypeChange('receita')}>
-              <MaterialCommunityIcons name="arrow-up-circle" size={20} color={type === 'receita' ? '#FFF' : '#2E7D32'} />
-              <Text style={[styles.typeText, type === 'receita' && { color: '#FFF' }]}>Receita</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={[styles.typeBtn, type === 'despesa' && styles.typeBtnExpense]} onPress={() => handleTypeChange('despesa')}>
-              <MaterialCommunityIcons name="arrow-down-circle" size={20} color={type === 'despesa' ? '#FFF' : '#C62828'} />
-              <Text style={[styles.typeText, type === 'despesa' && { color: '#FFF' }]}>Despesa</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* VALOR */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Valor (R$)</Text>
+          {/* BLOCO DE VALOR DESTAQUE (IGUAL ÀS METAS) */}
+          <View style={[styles.amountContainer, { backgroundColor: bgColor, borderColor: mainColor }]}>
+            <Text style={[styles.amountLabel, { color: mainColor }]}>Quanto foi o valor?</Text>
             <TextInput
-              style={[styles.input, { fontSize: 32, fontWeight: 'bold', color: type === 'receita' ? '#2E7D32' : '#C62828' }]}
-              placeholder="0,00"
-              keyboardType="numeric"
+              style={[styles.amountInput, { color: mainColor }]}
+              placeholder="R$ 0,00"
+              placeholderTextColor={mainColor + '50'}
               value={amount}
-              onChangeText={setAmount}
+              onChangeText={handleMoneyChange}
+              keyboardType="numeric"
+              autoFocus={!isEditing}
             />
           </View>
 
-          {/* LISTA DE CATEGORIAS (CHIPS) */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Categoria</Text>
-            <View style={styles.categoriesWrapper}>
-              {currentCategories.map((cat) => (
-                <TouchableOpacity 
-                  key={cat} 
-                  style={[styles.categoryChip, selectedCategory === cat && !isCustomCategory && styles.categoryChipSelected]}
-                  onPress={() => {
-                    setSelectedCategory(cat);
-                    setIsCustomCategory(false);
-                  }}
+          <View style={styles.formGroup}>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>CATEGORIA</Text>
+            <View style={styles.categoryGrid}>
+              {categoriasAtuais.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  activeOpacity={0.7}
+                  style={[
+                    styles.categoryChip,
+                    { 
+                        backgroundColor: colors.card, 
+                        borderColor: selectedCategory === item.label ? mainColor : colors.border,
+                        borderWidth: selectedCategory === item.label ? 2 : 1 
+                    }
+                  ]}
+                  onPress={() => setSelectedCategory(item.label)}
                 >
-                  <Text style={[styles.categoryChipText, selectedCategory === cat && !isCustomCategory && { color: '#FFF' }]}>{cat}</Text>
+                  <MaterialCommunityIcons 
+                    name={item.icon as any} 
+                    size={20} 
+                    color={selectedCategory === item.label ? mainColor : colors.textSecondary} 
+                  />
+                  <Text style={[styles.categoryChipText, { color: selectedCategory === item.label ? colors.text : colors.textSecondary }]}>
+                    {item.label}
+                  </Text>
                 </TouchableOpacity>
               ))}
-              
-              {/* Botão de Categoria Personalizada */}
-              <TouchableOpacity 
-                style={[styles.categoryChip, isCustomCategory && styles.categoryChipSelected]}
-                onPress={() => setIsCustomCategory(true)}
-              >
-                <MaterialCommunityIcons name="plus" size={16} color={isCustomCategory ? '#FFF' : '#666'} />
-                <Text style={[styles.categoryChipText, isCustomCategory && { color: '#FFF' }]}>Outra</Text>
-              </TouchableOpacity>
             </View>
-
-            {/* Campo que aparece se o usuário escolher "Outra" */}
-            {isCustomCategory && (
-              <TextInput 
-                style={[styles.input, { marginTop: 10 }]} 
-                placeholder="Qual o nome da categoria?" 
-                value={customCategoryText} 
-                onChangeText={setCustomCategoryText} 
-                autoFocus
-              />
-            )}
           </View>
 
-          {/* DESCRIÇÃO (OPCIONAL) */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Descrição (Opcional)</Text>
-            <TextInput 
-              style={styles.input} 
-              placeholder="Ex: Almoço de domingo..." 
-              value={description} 
-              onChangeText={setDescription} 
+          <View style={styles.formGroup}>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>DESCRIÇÃO</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+              placeholder="Ex: Almoço de domingo, Venda OLX..."
+              placeholderTextColor={colors.textSecondary}
+              value={description}
+              onChangeText={setDescription}
             />
           </View>
 
-          {/* ANEXO DE RECIBO */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Recibo (Opcional)</Text>
-            <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
-              {receiptImage ? (
-                <Image source={{ uri: receiptImage }} style={styles.previewImage} />
-              ) : (
-                <>
-                  <MaterialCommunityIcons name="camera-plus" size={32} color="#999" />
-                  <Text style={{ color: '#999', marginTop: 8 }}>Anexar foto do comprovante</Text>
-                </>
-              )}
-            </TouchableOpacity>
+          <View style={styles.formGroup}>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>COMPROVANTE</Text>
+            {receiptImage ? (
+              <View style={styles.imagePreviewContainer}>
+                <Image source={{ uri: receiptImage }} style={styles.imagePreview} />
+                <TouchableOpacity style={styles.removeImage} onPress={() => setReceiptImage(null)}>
+                  <Ionicons name="close" size={20} color="#FFF" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={[styles.attachBtn, { borderColor: colors.border }]} onPress={handlePickImage}>
+                <Ionicons name="document-attach-outline" size={22} color={colors.textSecondary} />
+                <Text style={{ color: colors.textSecondary, marginLeft: 10, fontWeight: '700', fontSize: 13 }}>Anexar Recibo</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
         </ScrollView>
 
-        {/* BOTÃO SALVAR */}
-        <View style={styles.footer}>
-          <TouchableOpacity style={[styles.saveBtn, { backgroundColor: type === 'receita' ? '#2E7D32' : '#C62828' }]} onPress={handleSave} disabled={isLoading}>
-            {isLoading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnText}>Salvar Transação</Text>}
+        <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.background }]}>
+          <TouchableOpacity 
+            style={[styles.saveBtn, { backgroundColor: mainColor }]} 
+            onPress={handleSave} 
+            disabled={isSaving}
+          >
+            {isSaving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnText}>{isEditing ? 'Salvar Alterações' : 'Confirmar Transação'}</Text>}
           </TouchableOpacity>
         </View>
-
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFF' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-  backBtn: { padding: 5 },
-  formContent: { padding: 20, paddingBottom: 40 },
-  
-  typeSelector: { flexDirection: 'row', gap: 15, marginBottom: 25 },
-  typeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 15, borderRadius: 12, borderWidth: 1, borderColor: '#E0E0E0', gap: 8 },
-  typeBtnIncome: { backgroundColor: '#2E7D32', borderColor: '#2E7D32' },
-  typeBtnExpense: { backgroundColor: '#C62828', borderColor: '#C62828' },
-  typeText: { fontSize: 16, fontWeight: 'bold', color: '#666' },
-  
-  inputGroup: { marginBottom: 20 },
-  label: { fontSize: 14, fontWeight: '600', color: '#666', marginBottom: 8 },
-  input: { backgroundColor: '#F8F9FA', padding: 15, borderRadius: 12, fontSize: 16, color: '#333', borderWidth: 1, borderColor: '#E0E0E0' },
-  
-  // Estilos das Categorias (Chips)
-  categoriesWrapper: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  categoryChip: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0' },
-  categoryChipSelected: { backgroundColor: '#47A138', borderColor: '#47A138' },
-  categoryChipText: { fontSize: 14, color: '#475569', fontWeight: '500' },
-
-  imagePickerBtn: { backgroundColor: '#F8F9FA', height: 120, borderRadius: 12, borderWidth: 1, borderColor: '#E0E0E0', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  previewImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-  
-  footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#F0F0F0', backgroundColor: '#FFF' },
-  saveBtn: { padding: 18, borderRadius: 16, alignItems: 'center' },
+  container: { flex: 1 },
+  header: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    height: 60, 
+    paddingHorizontal: 15, 
+    borderBottomWidth: 1 
+  },
+  headerBtn: { width: 40, alignItems: 'center' },
+  headerRight: { flexDirection: 'row', alignItems: 'center' },
+  headerTitle: { fontSize: 17, fontWeight: 'bold' },
+  content: { padding: 25 },
+  amountContainer: { padding: 25, borderRadius: 24, alignItems: 'center', marginBottom: 30, borderWidth: 1 },
+  amountLabel: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', marginBottom: 5, letterSpacing: 0.5 },
+  amountInput: { fontSize: 36, fontWeight: '900', textAlign: 'center', width: '100%' },
+  formGroup: { marginBottom: 30 },
+  label: { fontSize: 11, fontWeight: '900', marginBottom: 12, marginLeft: 4, letterSpacing: 1 },
+  input: { borderWidth: 1, borderRadius: 16, padding: 18, fontSize: 16 },
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  categoryChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 14, borderRadius: 16, minWidth: '48%' },
+  categoryChipText: { fontSize: 12, fontWeight: 'bold', marginLeft: 10 },
+  attachBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 22, borderRadius: 18, borderStyle: 'dashed', borderWidth: 2 },
+  imagePreviewContainer: { width: '100%', height: 200, borderRadius: 20, overflow: 'hidden', position: 'relative' },
+  imagePreview: { width: '100%', height: '100%', resizeMode: 'cover' },
+  removeImage: { position: 'absolute', top: 12, right: 12, backgroundColor: 'rgba(0,0,0,0.6)', padding: 6, borderRadius: 20 },
+  footer: { padding: 20, borderTopWidth: 1 },
+  saveBtn: { padding: 18, borderRadius: 20, alignItems: 'center', justifyContent: 'center', height: 60, elevation: 3 },
   saveBtnText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' }
 });

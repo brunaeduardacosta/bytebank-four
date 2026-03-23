@@ -1,129 +1,129 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Pressable, Image } from 'react-native';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { useAuth } from '../context/AuthContext';
-import { COLORS } from '../theme';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../services/firebase'; 
+import { useTheme } from '../context/ThemeContext';
 
-// Importação das Telas
 import DashboardScreen from '../screens/DashboardScreen';
-import TransactionFormScreen from '../screens/TransactionFormScreen'; 
-import ResumoScreen from '../screens/ResumoScreen'; 
-import TransferenciaScreen from '../screens/TransferenciaScreen';
-import EmprestimoScreen from '../screens/EmprestimoScreen';
+import TransactionFormScreen from '../screens/TransactionFormScreen';
+import ResumoScreen from '../screens/ResumoScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
-import WelcomeScreen from '../screens/WelcomeScreen';
 import StatementScreen from '../screens/StatementScreen';
 import ProfileScreen from '../screens/ProfileScreen';
-import GoalsScreen from '../screens/GoalScreen'; 
-import GoalFormScreen from '../screens/GoalFormScreen';
+import GoalScreen from '../screens/GoalScreen';
+import OnboardingScreen from '../screens/OnboardingScreen';
 
 const Drawer = createDrawerNavigator();
 const Stack = createNativeStackNavigator();
 
-function HomeStack() {
+function HomeStack({ initialRouteName }: { initialRouteName: any }) {
   return (
-    <Stack.Navigator id="home-stack" screenOptions={{ headerShown: false }}>
+    <Stack.Navigator 
+      id="home-stack-navigator" // Adicionado ID obrigatório
+      screenOptions={{ headerShown: false }} 
+      initialRouteName={initialRouteName}
+    >
       <Stack.Screen name="Dashboard" component={DashboardScreen} />
+      <Stack.Screen name="Onboarding" component={OnboardingScreen} />
       <Stack.Screen name="TransactionForm" component={TransactionFormScreen} />
       <Stack.Screen name="Statement" component={StatementScreen} />
-      <Stack.Screen name="ResumoFinanceiro" component={ResumoScreen} /> 
-      <Stack.Screen name="Transferencia" component={TransferenciaScreen} /> 
-      <Stack.Screen name="Emprestimo" component={EmprestimoScreen} /> 
-      <Stack.Screen name="Profile" component={ProfileScreen} /> 
-      <Stack.Screen name="Goals" component={GoalsScreen} /> 
-      <Stack.Screen name="GoalForm" component={GoalFormScreen} options={{ presentation: 'modal' }} />
+      <Stack.Screen name="ResumoFinanceiro" component={ResumoScreen} />
+      <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="Goals" component={GoalScreen} />
     </Stack.Navigator>
   );
 }
 
-/**
- * --- CustomDrawerContent ---
- */
 function CustomDrawerContent(props: any) {
   const { signOut, user } = useAuth();
+  const { colors, theme } = useTheme();
   const firstName = user?.displayName ? user.displayName.split(' ')[0] : 'Usuário';
 
   return (
-    <DrawerContentScrollView {...props} contentContainerStyle={{ flex: 1 }}>
-      <View>
-        <View style={styles.drawerHeader}>
-          <View style={styles.avatar}>
-            {user?.photoURL ? (
-              <Image source={{ uri: user.photoURL }} style={styles.avatarImage} />
-            ) : (
-              <Text style={styles.avatarText}>{firstName.charAt(0).toUpperCase()}</Text>
-            )}
-          </View>
-          <Text style={styles.userName}>{user?.displayName || 'Usuário Bytebank'}</Text>
-          <Text style={styles.userEmail}>{user?.email}</Text>
+    <DrawerContentScrollView {...props} contentContainerStyle={{ flex: 1, backgroundColor: colors.background }}>
+      <View style={[styles.drawerHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+        <View style={[styles.avatar, { backgroundColor: colors.accent }]}>
+          {user?.photoURL ? (
+            <Image source={{ uri: user.photoURL }} style={styles.avatarImage} />
+          ) : (
+            <Text style={styles.avatarText}>{firstName.charAt(0).toUpperCase()}</Text>
+          )}
         </View>
-        
-        <DrawerItemList {...props} />
+        <Text style={[styles.userName, { color: colors.text }]}>{user?.displayName || 'Usuário Bytebank'}</Text>
+        <Text style={[styles.userEmail, { color: colors.textSecondary }]}>{user?.email || ''}</Text>
       </View>
-      
-      <View style={styles.logoutContainer}>
-        <Pressable 
-          onPress={signOut} 
-          style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }, styles.logoutBtn]}
-        >
-          <Text style={styles.logoutText}>Sair da Conta</Text>
+      <DrawerItemList {...props} />
+      <View style={[styles.logoutContainer, { borderTopColor: colors.border }]}>
+        <Pressable onPress={signOut} style={styles.logoutBtn}>
+          <Text style={[styles.logoutText, { color: colors.danger }]}>Sair da Conta</Text>
         </Pressable>
       </View>
     </DrawerContentScrollView>
   );
 }
 
-/**
- * --- Componente Principal de Rotas ---
- */
 export default function Routes() {
   const { user, loading } = useAuth();
+  const { colors, theme } = useTheme();
+  const [isCheckingBoarding, setIsCheckingBoarding] = useState(true);
+  const [startScreen, setStartScreen] = useState<'Dashboard' | 'Onboarding'>('Dashboard');
 
-  if (loading) {
+  useEffect(() => {
+    async function checkOnboardingStatus() {
+      if (user) {
+        try {
+          const userRef = doc(db, 'users', user.uid);
+          const docSnap = await getDoc(userRef);
+          if (docSnap.exists() && docSnap.data().onboardingCompleted) {
+            setStartScreen('Dashboard');
+          } else {
+            setStartScreen('Onboarding'); 
+          }
+        } catch {
+          setStartScreen('Dashboard');
+        }
+      }
+      setIsCheckingBoarding(false); 
+    }
+
+    if (!loading) {
+      if (user) { checkOnboardingStatus(); } 
+      else { setIsCheckingBoarding(false); }
+    }
+  }, [user, loading]);
+
+  if (loading || isCheckingBoarding) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.accent} />
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color="#47A138" />
       </View>
     );
   }
 
   return user ? (
     <Drawer.Navigator
-      id="root-drawer"
-      initialRouteName="Welcome"
+      id="root-drawer-navigator" // Adicionado ID obrigatório
       drawerContent={(props) => <CustomDrawerContent {...props} />}
       screenOptions={{
         headerShown: false,
-        drawerActiveBackgroundColor: COLORS.primary,
-        drawerActiveTintColor: COLORS.accent,
+        drawerStyle: { backgroundColor: colors.background },
+        drawerActiveBackgroundColor: theme === 'dark' ? 'rgba(71, 161, 56, 0.15)' : '#DCFCE7',
+        drawerActiveTintColor: colors.accent,
+        drawerInactiveTintColor: colors.text,
       }}
     >
-      <Drawer.Screen 
-        name="Welcome" 
-        component={WelcomeScreen} 
-        options={{ 
-          drawerItemStyle: { display: 'none' }, 
-          swipeEnabled: false 
-        }} 
-      />
-
-      <Drawer.Screen 
-        name="Home" 
-        component={HomeStack} 
-        options={{ title: 'Início' }} 
-      />
-
-      <Drawer.Screen 
-        name="Settings" 
-        component={DashboardScreen} 
-        options={{ title: 'Configurações' }} 
-      />
+      <Drawer.Screen name="Home" options={{ title: 'Início' }}>
+        {(props) => <HomeStack {...props} initialRouteName={startScreen} />}
+      </Drawer.Screen>
+      <Drawer.Screen name="Settings" component={ProfileScreen} options={{ title: 'Meu Perfil' }} />
     </Drawer.Navigator>
   ) : (
-    <Stack.Navigator id="auth-stack" screenOptions={{ headerShown: false }}>
+    <Stack.Navigator id="auth-stack-navigator" screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />
     </Stack.Navigator>
@@ -131,14 +131,14 @@ export default function Routes() {
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.primary },
-  drawerHeader: { padding: 20, backgroundColor: '#FFF', marginBottom: 10, alignItems: 'flex-start', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  avatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', marginBottom: 10, overflow: 'hidden' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  drawerHeader: { padding: 20, marginBottom: 10, borderBottomWidth: 1 },
+  avatar: { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', marginBottom: 10, overflow: 'hidden' },
   avatarImage: { width: '100%', height: '100%' },
-  avatarText: { color: COLORS.white, fontSize: 24, fontWeight: 'bold' },
-  userName: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-  userEmail: { fontSize: 12, color: '#666' },
-  logoutContainer: { marginTop: 'auto', padding: 20, borderTopWidth: 1, borderColor: '#E0E0E0' },
+  avatarText: { color: '#FFF', fontSize: 24, fontWeight: 'bold' },
+  userName: { fontSize: 18, fontWeight: 'bold' },
+  userEmail: { fontSize: 12 },
+  logoutContainer: { marginTop: 'auto', padding: 20, borderTopWidth: 1 },
   logoutBtn: { paddingVertical: 10 },
-  logoutText: { color: '#D32F2F', fontWeight: 'bold', fontSize: 16 },
+  logoutText: { fontWeight: 'bold', fontSize: 16 }
 });

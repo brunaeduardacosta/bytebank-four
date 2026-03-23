@@ -26,14 +26,12 @@ export default function RegisterScreen({ navigation }: any) {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // --- FUNÇÃO DE REGISTO ---
+  // 🔥 FUNÇÃO DE REGISTRO CORRIGIDA
   const handleRegister = async () => {
-    // 1. Validação de campos vazios
     if (!nome.trim() || !email.trim() || !senha.trim()) {
       return Alert.alert('Atenção', 'Por favor, preencha todos os campos.');
     }
 
-    // 2. Validação de segurança da senha (Exigência do Firebase)
     if (senha.length < 6) {
       return Alert.alert('Atenção', 'A senha deve ter pelo menos 6 caracteres.');
     }
@@ -41,11 +39,14 @@ export default function RegisterScreen({ navigation }: any) {
     setIsLoading(true);
 
     try {
-      // Chama a função do AuthContext passando o Nome, E-mail e Senha
       await signUp(nome.trim(), email.trim(), senha);
-      
-      // Nota: Se o registo for bem-sucedido, o Firebase faz o login automaticamente
-      // e o onAuthStateChanged no App.tsx/Routes.tsx vai redirecionar para o Dashboard!
+
+      // 🔥 REDIRECIONA PARA ONBOARDING E REMOVE HISTÓRICO
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Onboarding' }],
+      });
+
     } catch (error: any) {
       Alert.alert('Erro ao Criar Conta', error.message);
     } finally {
@@ -72,7 +73,7 @@ export default function RegisterScreen({ navigation }: any) {
         {/* FORMULÁRIO */}
         <View style={styles.formContainer}>
           
-          {/* Campo Nome */}
+          {/* Nome */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Como quer ser chamado?</Text>
             <View style={styles.inputWrapper}>
@@ -87,7 +88,7 @@ export default function RegisterScreen({ navigation }: any) {
             </View>
           </View>
 
-          {/* Campo E-mail */}
+          {/* Email */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>E-mail</Text>
             <View style={styles.inputWrapper}>
@@ -103,7 +104,7 @@ export default function RegisterScreen({ navigation }: any) {
             </View>
           </View>
 
-          {/* Campo Senha com Olhinho */}
+          {/* Senha */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Senha</Text>
             <View style={styles.inputWrapper}>
@@ -128,7 +129,7 @@ export default function RegisterScreen({ navigation }: any) {
             </View>
           </View>
 
-          {/* Botão de Registar */}
+          {/* Botão */}
           <TouchableOpacity 
             style={[styles.registerBtn, isLoading && styles.registerBtnDisabled]} 
             onPress={handleRegister}
@@ -142,7 +143,7 @@ export default function RegisterScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
 
-        {/* RODAPÉ: Voltar para Login */}
+        {/* Rodapé */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>Já tem uma conta? </Text>
           <TouchableOpacity onPress={() => navigation.navigate('Login')}>
@@ -160,19 +161,50 @@ const styles = StyleSheet.create({
   keyboardView: { flex: 1, justifyContent: 'center', padding: 24 },
   
   headerContainer: { alignItems: 'center', marginBottom: 40 },
-  iconContainer: { width: 72, height: 72, backgroundColor: '#47A138', borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 20, elevation: 4 },
+  iconContainer: { 
+    width: 72, 
+    height: 72, 
+    backgroundColor: '#47A138', 
+    borderRadius: 24, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    marginBottom: 20, 
+    elevation: 4 
+  },
   title: { fontSize: 26, fontWeight: '900', color: '#1F2937', marginBottom: 8 },
   subtitle: { fontSize: 14, color: '#6B7280' },
   
   formContainer: { width: '100%' },
   inputGroup: { marginBottom: 20 },
-  label: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 8, textTransform: 'uppercase' },
-  inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, paddingHorizontal: 15 },
+  label: { 
+    fontSize: 13, 
+    fontWeight: '700', 
+    color: '#374151', 
+    marginBottom: 8, 
+    textTransform: 'uppercase' 
+  },
+  inputWrapper: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: '#FFF', 
+    borderWidth: 1, 
+    borderColor: '#E2E8F0', 
+    borderRadius: 16, 
+    paddingHorizontal: 15 
+  },
   inputIcon: { marginRight: 10 },
   input: { flex: 1, paddingVertical: 16, fontSize: 16, color: '#1F2937' },
   eyeIcon: { padding: 10 },
   
-  registerBtn: { backgroundColor: '#47A138', padding: 18, borderRadius: 16, alignItems: 'center', justifyContent: 'center', elevation: 2, marginTop: 10 },
+  registerBtn: { 
+    backgroundColor: '#47A138', 
+    padding: 18, 
+    borderRadius: 16, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    elevation: 2, 
+    marginTop: 10 
+  },
   registerBtnDisabled: { opacity: 0.7 },
   registerBtnText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
   

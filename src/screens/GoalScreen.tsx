@@ -1,202 +1,257 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useGoals, Goal } from '../context/GoalsContext';
+import { useGoals } from '../context/GoalsContext';
+import { useTransactions } from '../context/TransactionContext'; 
+import { useTheme } from '../context/ThemeContext';
+
+const OBJETIVOS_SUGERIDOS = [
+  { id: '1', label: 'Reserva de Emergência', icon: 'shield-check-outline' },
+  { id: '2', label: 'Viagem', icon: 'airplane' },
+  { id: '3', label: 'Carro Novo', icon: 'car-outline' },
+  { id: '4', label: 'Casa Própria', icon: 'home-outline' },
+  { id: '5', label: 'Investimentos', icon: 'trending-up' },
+  { id: '6', label: 'Aposentadoria', icon: 'palm-tree' },
+];
+
+const CORES_METAS = ['#16A34A', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899'];
 
 export default function GoalsScreen({ navigation }: any) {
-  const { goals, pinGoal, addFunds } = useGoals();
-  
-  // Estados para controlar o Modal de Depósito
+  const { goals, addGoal, updateGoal, deleteGoal } = useGoals();
+  const { balance } = useTransactions(); 
+  const { colors, theme } = useTheme();
+
+  // Estados para Criação
   const [modalVisible, setModalVisible] = useState(false);
-  const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
-  const [depositAmount, setDepositAmount] = useState('');
+  const [title, setTitle] = useState('');
+  const [target, setTarget] = useState('');
+  const [selectedColor, setSelectedColor] = useState(CORES_METAS[0]);
 
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  // Estados para Depósito
+  const [depositModal, setDepositModal] = useState(false);
+  const [selectedGoal, setSelectedGoal] = useState<any>(null);
+  const [amountToSave, setAmountToSave] = useState('');
+
+  const formatCurrency = (value: number | undefined | null) => {
+    const safeValue = value ?? 0; 
+    return safeValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  // --- LÓGICA DO MODAL ---
-  const openDepositModal = (goal: Goal) => {
-    setSelectedGoal(goal);
-    setDepositAmount(''); // Limpa o valor antigo
-    setModalVisible(true);
+  const handleMoneyChange = (text: string, setter: (v: string) => void) => {
+    const numeric = text.replace(/\D/g, '');
+    if (!numeric) return setter('');
+    const floatValue = parseFloat(numeric) / 100;
+    setter(floatValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
   };
 
-  const handleAmountChange = (text: string) => {
-    const numericValue = text.replace(/\D/g, '');
-    const floatValue = parseFloat(numericValue) / 100;
-    if (!isNaN(floatValue)) {
-      setDepositAmount(floatValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
-    } else {
-      setDepositAmount('');
+  const handleCreateGoal = () => {
+    const targetValue = parseFloat(target.replace(/\D/g, '')) / 100;
+    if (!title || !targetValue) return Alert.alert("Erro", "Preencha o nome e o valor alvo.");
+    addGoal({ title, target: targetValue, current: 0, color: selectedColor });
+    setModalVisible(false);
+    setTitle(''); setTarget('');
+  };
+
+  const handleDeposit = () => {
+    const value = parseFloat(amountToSave.replace(/\D/g, '')) / 100;
+    if (value > balance) {
+      return Alert.alert("Saldo Insuficiente", `Você possui apenas ${formatCurrency(balance)} disponível.`);
     }
-  };
-
-  const confirmDeposit = async () => {
-    if (!selectedGoal) return;
-    
-    const numericAmount = parseFloat(depositAmount.replace(/\D/g, '')) / 100;
-    if (!numericAmount || numericAmount <= 0) {
-      alert('Por favor, introduza um valor válido.');
-      return;
+    if (selectedGoal) {
+      const newTotal = (selectedGoal.current || 0) + value;
+      updateGoal(selectedGoal.id, { current: newTotal });
+      setDepositModal(false);
+      setAmountToSave('');
     }
-
-    await addFunds(selectedGoal.id, numericAmount);
-    setModalVisible(false); // Fecha o modal após salvar
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={28} color="#1F2937" />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      {/* HEADER AJUSTADO (Mais elegante e menos alto) */}
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Minhas Metas</Text>
-        <View style={{ width: 28 }} />
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Minhas Metas</Text>
+        <TouchableOpacity onPress={() => setModalVisible(true)} style={styles.headerBtn}>
+          <Ionicons name="add-circle" size={28} color={colors.accent} />
+        </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        
-        <View style={styles.infoBox}>
-          <MaterialCommunityIcons name="bullseye-arrow" size={32} color="#47A138" />
-          <Text style={styles.infoText}>Crie "caixinhas" para organizar seus objetivos financeiros e acompanhe seu progresso.</Text>
-        </View>
-
-        {goals.map((goal) => {
-          const progress = goal.targetAmount > 0 ? Math.min(goal.currentAmount / goal.targetAmount, 1) : 0;
-          const progressPercent = (progress * 100).toFixed(0);
-
+      <FlatList
+        data={goals}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={{ padding: 20 }}
+        renderItem={({ item }) => {
+          const progress = Math.min((item.current || 0) / (item.target || 1), 1);
           return (
-            <TouchableOpacity 
-              key={goal.id} 
-              style={styles.goalCard} 
-              activeOpacity={0.8}
-              onPress={() => openDepositModal(goal)} // <-- AGORA ABRE O MODAL!
-            >
+            <View style={[styles.goalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.goalHeader}>
-                <View style={styles.goalTitleArea}>
-                  <View style={[styles.colorDot, { backgroundColor: goal.color }]} />
-                  <Text style={styles.goalTitle}>{goal.title}</Text>
-                </View>
-                
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={[styles.goalPercent, { color: goal.color, marginRight: 10 }]}>{`${progressPercent}%`}</Text>
-                  
-                  <TouchableOpacity onPress={() => pinGoal(goal.id)} style={{ padding: 4 }}>
-                    <Ionicons 
-                      name={goal.isPinned ? "star" : "star-outline"} 
-                      size={24} 
-                      color={goal.isPinned ? "#F59E0B" : "#cbd5e1"} 
-                    />
-                  </TouchableOpacity>
+                <Text style={[styles.goalTitle, { color: colors.text }]}>{item.title}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}>
+                   <TouchableOpacity onPress={() => { setSelectedGoal(item); setDepositModal(true); }}>
+                     <Text style={{ color: item.color, fontWeight: 'bold' }}>Guardar</Text>
+                   </TouchableOpacity>
+                   <TouchableOpacity onPress={() => {
+                     Alert.alert("Excluir", "Deseja apagar esta meta?", [
+                       { text: "Não", style: "cancel" },
+                       { text: "Sim", style: "destructive", onPress: () => deleteGoal(item.id) }
+                     ]);
+                   }}>
+                     <Ionicons name="trash-outline" size={18} color={colors.textSecondary} />
+                   </TouchableOpacity>
                 </View>
               </View>
+              
+              <Text style={[styles.goalValues, { color: colors.textSecondary }]}>
+                {formatCurrency(item.current)} de {formatCurrency(item.target)}
+              </Text>
 
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { backgroundColor: goal.color, width: `${progress * 100}%` }]} />
+              <View style={styles.progressBarBg}>
+                <View style={[styles.progressBarFill, { width: `${progress * 100}%`, backgroundColor: item.color }]} />
               </View>
-
-              <View style={styles.goalFooter}>
-                <Text style={styles.goalAmount}>{`Guardado: ${formatCurrency(goal.currentAmount)}`}</Text>
-                <Text style={styles.goalTarget}>{`Meta: ${formatCurrency(goal.targetAmount)}`}</Text>
-              </View>
-            </TouchableOpacity>
+            </View>
           );
-        })}
-      </ScrollView>
+        }}
+      />
 
-      <TouchableOpacity style={styles.fab} activeOpacity={0.9} onPress={() => navigation.navigate('GoalForm')} >
-        <Ionicons name="add" size={32} color="#FFF" />
-      </TouchableOpacity>
-
-      {/* --- MODAL DE DEPÓSITO --- */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            
-            {/* Botão de Fechar */}
-            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setModalVisible(false)}>
-              <Ionicons name="close" size={24} color="#94A3B8" />
-            </TouchableOpacity>
-
-            {selectedGoal && (
-              <>
-                <View style={[styles.modalIconCircle, { backgroundColor: selectedGoal.color + '1A' }]}>
-                  <Ionicons name="wallet-outline" size={40} color={selectedGoal.color} />
+      {/* MODAL CRIAR META */}
+      <Modal visible={modalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
+            <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+              <View style={styles.modalHeaderRow}>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>Nova Meta</Text>
+                <TouchableOpacity onPress={() => setModalVisible(false)}>
+                   <Ionicons name="close" size={28} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+              
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={[styles.highlightValueBlock, { backgroundColor: colors.background }]}>
+                  <Text style={[styles.highlightLabel, { color: colors.textSecondary }]}>QUANTO VOCÊ PRECISA?</Text>
+                  <TextInput
+                    style={[styles.hugeInput, { color: selectedColor }]}
+                    placeholder="R$ 0,00"
+                    placeholderTextColor={selectedColor + '50'}
+                    keyboardType="numeric"
+                    value={target}
+                    onChangeText={(t) => handleMoneyChange(t, setTarget)}
+                  />
                 </View>
-                
-                <Text style={styles.modalTitle}>Guardar em <Text style={{ color: selectedGoal.color }}>{selectedGoal.title}</Text></Text>
-                
+
+                <Text style={styles.innerLabel}>NOME DO OBJETIVO</Text>
                 <TextInput
-                  style={[styles.modalInput, { color: selectedGoal.color }]}
-                  placeholder="R$ 0,00"
-                  placeholderTextColor="#CBD5E1"
-                  value={depositAmount}
-                  onChangeText={handleAmountChange}
-                  keyboardType="numeric"
-                  autoFocus
+                  style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
+                  placeholder="Ex: Viagem para o Japão"
+                  placeholderTextColor={colors.textSecondary}
+                  value={title}
+                  onChangeText={setTitle}
                 />
 
-                <TouchableOpacity 
-                  style={[styles.modalSaveBtn, { backgroundColor: selectedGoal.color }]} 
-                  activeOpacity={0.8} 
-                  onPress={confirmDeposit}
-                >
-                  <Text style={styles.modalSaveBtnText}>Confirmar Depósito</Text>
-                </TouchableOpacity>
-              </>
-            )}
+                <View style={styles.chipsContainer}>
+                  {OBJETIVOS_SUGERIDOS.map(obj => (
+                    <TouchableOpacity 
+                      key={obj.id} 
+                      style={[styles.chip, { borderColor: title === obj.label ? colors.accent : colors.border }]}
+                      onPress={() => setTitle(obj.label)}
+                    >
+                      <MaterialCommunityIcons name={obj.icon as any} size={14} color={title === obj.label ? colors.accent : colors.textSecondary} />
+                      <Text style={[styles.chipText, { color: title === obj.label ? colors.text : colors.textSecondary }]}>{obj.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
 
-          </View>
-        </KeyboardAvoidingView>
+                <Text style={[styles.innerLabel, { marginTop: 10 }]}>ESCOLHA UMA COR</Text>
+                <View style={styles.colorRow}>
+                  {CORES_METAS.map(c => (
+                    <TouchableOpacity 
+                      key={c} 
+                      style={[styles.colorDot, { backgroundColor: c, borderWidth: selectedColor === c ? 3 : 0, borderColor: colors.text }]} 
+                      onPress={() => setSelectedColor(c)} 
+                    />
+                  ))}
+                </View>
+
+                <TouchableOpacity style={[styles.btn, { backgroundColor: selectedColor }]} onPress={handleCreateGoal}>
+                  <Text style={styles.btnText}>Criar Objetivo</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
 
+      {/* MODAL GUARDAR DINHEIRO */}
+      <Modal visible={depositModal} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card, alignItems: 'center' }]}>
+            <MaterialCommunityIcons name="piggy-bank-outline" size={50} color={selectedGoal?.color || colors.accent} />
+            <Text style={[styles.modalTitle, { color: colors.text, marginTop: 10 }]}>Guardar para {selectedGoal?.title}</Text>
+            
+            <View style={[styles.balanceBox, { backgroundColor: colors.background }]}>
+              <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Saldo Disponível</Text>
+              <Text style={{ color: colors.text, fontSize: 18, fontWeight: 'bold' }}>{formatCurrency(balance)}</Text>
+            </View>
+
+            <TextInput
+              style={[styles.hugeInput, { width: '100%', color: selectedGoal?.color || colors.accent, marginBottom: 20 }]}
+              placeholder="R$ 0,00"
+              keyboardType="numeric"
+              value={amountToSave}
+              onChangeText={(t) => handleMoneyChange(t, setAmountToSave)}
+              autoFocus
+            />
+
+            <TouchableOpacity 
+              style={[styles.btn, { width: '100%', backgroundColor: selectedGoal?.color || colors.accent }]} 
+              onPress={handleDeposit}
+            >
+              <Text style={styles.btnText}>Confirmar Depósito</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity onPress={() => setDepositModal(false)}><Text style={{ marginTop: 20, color: colors.textSecondary }}>Voltar</Text></TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  container: { flex: 1 },
   header: { 
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', 
-    paddingHorizontal: 20, paddingVertical: 15, backgroundColor: '#FFF',
-    borderBottomWidth: 1, borderBottomColor: '#E2E8F0'
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    height: 60, // Altura padronizada (resolve a questão de estar "alta")
+    paddingHorizontal: 15, 
+    borderBottomWidth: 1 
   },
-  backBtn: { padding: 5 },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#1F2937' },
-  content: { padding: 20, paddingBottom: 100 },
-  
-  infoBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#DCFCE7', padding: 15, borderRadius: 16, marginBottom: 25 },
-  infoText: { flex: 1, marginLeft: 15, color: '#166534', fontSize: 14, fontWeight: '500', lineHeight: 20 },
-
-  goalCard: { backgroundColor: '#FFF', padding: 20, borderRadius: 20, marginBottom: 15, borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 2 },
-  goalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
-  goalTitleArea: { flexDirection: 'row', alignItems: 'center' },
-  colorDot: { width: 12, height: 12, borderRadius: 6, marginRight: 10 },
-  goalTitle: { fontSize: 16, fontWeight: 'bold', color: '#1F2937' },
-  goalPercent: { fontSize: 16, fontWeight: '900' },
-  
-  progressTrack: { height: 12, backgroundColor: '#F1F5F9', borderRadius: 6, overflow: 'hidden', marginBottom: 15 },
-  progressFill: { height: '100%', borderRadius: 6 },
-  
-  goalFooter: { flexDirection: 'row', justifyContent: 'space-between' },
-  goalAmount: { fontSize: 13, fontWeight: '600', color: '#4B5563' },
-  goalTarget: { fontSize: 13, fontWeight: '500', color: '#94A3B8' },
-
-  fab: { position: 'absolute', bottom: 30, right: 25, width: 60, height: 60, backgroundColor: '#47A138', borderRadius: 30, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 5, elevation: 5 },
-
-  // --- ESTILOS DO MODAL ---
-  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-  modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 30, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 10 },
-  modalCloseBtn: { position: 'absolute', top: 20, right: 20, padding: 5 },
-  modalIconCircle: { width: 70, height: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', marginBottom: 15, marginTop: 10 },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#1F2937', marginBottom: 25 },
-  modalInput: { width: '100%', backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, padding: 20, fontSize: 32, fontWeight: 'bold', textAlign: 'center', marginBottom: 25 },
-  modalSaveBtn: { width: '100%', padding: 18, borderRadius: 16, alignItems: 'center' },
-  modalSaveBtnText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' }
+  headerBtn: { width: 40, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 18, fontWeight: 'bold' },
+  goalCard: { padding: 20, borderRadius: 24, marginBottom: 15, borderWidth: 1 },
+  goalHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, alignItems: 'center' },
+  goalTitle: { fontSize: 17, fontWeight: 'bold' },
+  goalValues: { fontSize: 13, marginBottom: 12 },
+  progressBarBg: { height: 10, borderRadius: 5, backgroundColor: 'rgba(0,0,0,0.1)', overflow: 'hidden' },
+  progressBarFill: { height: '100%' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 },
+  modalContent: { padding: 25, borderRadius: 32 },
+  modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 20, fontWeight: 'bold' },
+  highlightValueBlock: { padding: 25, borderRadius: 20, alignItems: 'center', marginBottom: 20 },
+  highlightLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1, marginBottom: 5 },
+  hugeInput: { fontSize: 36, fontWeight: '900', textAlign: 'center' },
+  innerLabel: { fontSize: 11, fontWeight: '700', color: '#999', marginBottom: 8, marginLeft: 5 },
+  input: { borderWidth: 1, borderRadius: 16, padding: 15, marginBottom: 15 },
+  chipsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 15 },
+  chip: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1 },
+  chipText: { fontSize: 10, marginLeft: 4, fontWeight: 'bold' },
+  colorRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 25 },
+  colorDot: { width: 32, height: 32, borderRadius: 16 },
+  btn: { padding: 18, borderRadius: 18, alignItems: 'center', elevation: 2 },
+  btnText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
+  balanceBox: { padding: 15, borderRadius: 16, width: '100%', alignItems: 'center', marginBottom: 10 }
 });
