@@ -1,5 +1,11 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform, Image } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Image
+} from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
@@ -17,42 +23,73 @@ const Navbar: React.FC<NavbarProps> = ({ theme }) => {
     : 'A';
 
   return (
-    <View style={[navStyles.topbar, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-      <View style={navStyles.topbarInner}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.card,
+          borderBottomColor: theme.border,
+        },
+      ]}
+    >
+      <View style={styles.inner}>
+        {/* ESQUERDA */}
+        <View style={styles.left}>
+          <MaterialCommunityIcons
+            name="shield-check"
+            size={22}
+            color={theme.accent}
+            style={styles.logoIcon}
+          />
 
-        {/* LADO ESQUERDO */}
-        <View style={navStyles.leftSection}>
-          <MaterialCommunityIcons name="shield-check" size={24} color={theme.accent} />
+          <View style={styles.logoWrapper}>
+            <Text style={[styles.logoText, { color: theme.text }]}>
+              BYTE
+            </Text>
 
-          {/* LOGO CORRIGIDO */}
-          <View style={{ flexDirection: 'row' }}>
-            <Text style={[navStyles.logoText, { color: theme.text }]}>BYTE</Text>
-            <Text style={[navStyles.logoText, { color: theme.accent }]}>BANK</Text>
+            <Text style={[styles.logoTextAccent, { color: theme.accent }]}>
+              BANK
+            </Text>
           </View>
         </View>
 
-        {/* LADO DIREITO */}
-        <View style={navStyles.rightSection}>
-          
-          {/* NOTIFICAÇÕES */}
-          <TouchableOpacity style={navStyles.iconBtn} activeOpacity={0.7}>
-            <Ionicons name="notifications-outline" size={24} color={theme.text} />
-            <View style={navStyles.notifDot} />
+        {/* DIREITA */}
+        <View style={styles.right}>
+          {/* NOTIFICAÇÃO */}
+          <TouchableOpacity
+            style={styles.iconButton}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name="notifications-outline"
+              size={22}
+              color={theme.text}
+            />
+
+            <View style={styles.notificationBadge} />
           </TouchableOpacity>
 
           {/* PERFIL */}
           <TouchableOpacity
-            style={navStyles.profileBtn}
-            onPress={() => navigation.navigate('Profile')}
+            style={styles.profile}
             activeOpacity={0.8}
+            onPress={() => navigation.navigate('Profile')}
           >
-            <View style={[navStyles.userAvatar, { borderColor: theme.border }]}>
+            <View style={[styles.avatar, { borderColor: theme.border }]}>
               {user?.photoURL ? (
-                <Image source={{ uri: user.photoURL }} style={navStyles.avatarImage} />
+                <Image
+                  source={{ uri: user.photoURL }}
+                  style={styles.avatarImage}
+                />
               ) : (
-                <View style={[navStyles.avatarFallback, { backgroundColor: theme.accent }]}>
-                  <Text style={navStyles.avatarText}>
-                    {String(userInitial)}
+                <View
+                  style={[
+                    styles.avatarFallback,
+                    { backgroundColor: theme.accent },
+                  ]}
+                >
+                  <Text style={styles.avatarText}>
+                    {userInitial}
                   </Text>
                 </View>
               )}
@@ -60,112 +97,109 @@ const Navbar: React.FC<NavbarProps> = ({ theme }) => {
 
             <Ionicons
               name="chevron-down"
-              size={12}
+              size={14}
               color={theme.subText}
-              style={navStyles.chevron}
+              style={styles.chevron}
             />
           </TouchableOpacity>
         </View>
-
       </View>
     </View>
   );
 };
 
-const navStyles = StyleSheet.create({
-  topbar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: Platform.OS === 'ios' ? 110 : 90,
+const styles = StyleSheet.create({
+  container: {
     borderBottomWidth: 1,
-    paddingTop: Platform.OS === 'ios' ? 45 : 25,
-    justifyContent: 'center',
-    zIndex: 1000,
-    elevation: 10,
-  },
-  topbarInner: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
   },
 
-  // 🔧 removi "gap" para compatibilidade total
-  leftSection: {
+  inner: {
+    height: 60,
+    paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  left: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  logoIcon: {
+    marginRight: 8,
+  },
+
+  logoWrapper: {
+    flexDirection: 'row',
   },
 
   logoText: {
     fontSize: 18,
     fontWeight: '900',
     letterSpacing: 1,
+  },
+
+  logoTextAccent: {
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 1,
     marginLeft: 2,
   },
 
-  rightSection: {
+  right: {
     flexDirection: 'row',
     alignItems: 'center',
   },
 
-  iconBtn: {
-    padding: 4,
-    marginRight: 10,
+  iconButton: {
+    marginRight: 12,
+    padding: 6,
   },
 
-  notifDot: {
+  notificationBadge: {
     position: 'absolute',
-    top: 4,
-    right: 4,
+    top: 6,
+    right: 6,
     width: 8,
     height: 8,
-    backgroundColor: '#EF4444',
     borderRadius: 4,
-    borderWidth: 1.5,
-    borderColor: '#FFF'
+    backgroundColor: '#EF4444',
   },
 
-  profileBtn: {
+  profile: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    marginLeft: 5
+    alignItems: 'center',
   },
 
-  userAvatar: {
+  avatar: {
     width: 38,
     height: 38,
     borderRadius: 12,
     borderWidth: 1,
     overflow: 'hidden',
-    backgroundColor: '#F1F5F9'
   },
 
   avatarImage: {
     width: '100%',
-    height: '100%'
+    height: '100%',
   },
 
   avatarFallback: {
-    width: '100%',
-    height: '100%',
+    flex: 1,
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
   },
 
   avatarText: {
     color: '#FFF',
     fontWeight: 'bold',
-    fontSize: 16
+    fontSize: 16,
   },
 
   chevron: {
-    marginLeft: -6,
-    marginBottom: -2,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10
-  }
+    marginLeft: 4,
+  },
 });
 
 export default Navbar;

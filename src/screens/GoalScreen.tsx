@@ -1,257 +1,816 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  StatusBar,
+  TouchableOpacity,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
+} from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import Navbar from '../components/ui/Navbar';
 import { useGoals } from '../context/GoalsContext';
-import { useTransactions } from '../context/TransactionContext'; 
+import { useTransactions } from '../context/TransactionContext';
 import { useTheme } from '../context/ThemeContext';
 
+// --- CONSTANTES ---
 const OBJETIVOS_SUGERIDOS = [
-  { id: '1', label: 'Reserva de Emergência', icon: 'shield-check-outline' },
-  { id: '2', label: 'Viagem', icon: 'airplane' },
-  { id: '3', label: 'Carro Novo', icon: 'car-outline' },
-  { id: '4', label: 'Casa Própria', icon: 'home-outline' },
-  { id: '5', label: 'Investimentos', icon: 'trending-up' },
-  { id: '6', label: 'Aposentadoria', icon: 'palm-tree' },
+  { id: '1', label: 'Viagem', icon: 'airplane' },
+  { id: '2', label: 'Reserva', icon: 'shield-check' },
+  { id: '3', label: 'Carro', icon: 'car' },
+  { id: '4', label: 'Casa', icon: 'home' },
 ];
 
-const CORES_METAS = ['#16A34A', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899'];
+const CORES_METAS = ['#22C55E', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#14B8A6'];
+
+interface Goal {
+  id: string;
+  title: string;
+  target: number;
+  current: number;
+  color: string;
+}
 
 export default function GoalsScreen({ navigation }: any) {
-  const { goals, addGoal, updateGoal, deleteGoal } = useGoals();
-  const { balance } = useTransactions(); 
-  const { colors, theme } = useTheme();
+  const { goals = [], addGoal, updateGoal } = useGoals();
+  const { balance } = useTransactions();
+  const { theme, colors } = useTheme();
 
-  // Estados para Criação
+  // Estados dos Modais
   const [modalVisible, setModalVisible] = useState(false);
+  const [depositModal, setDepositModal] = useState(false);
+
+  // Estados de Criação
   const [title, setTitle] = useState('');
   const [target, setTarget] = useState('');
   const [selectedColor, setSelectedColor] = useState(CORES_METAS[0]);
 
-  // Estados para Depósito
-  const [depositModal, setDepositModal] = useState(false);
-  const [selectedGoal, setSelectedGoal] = useState<any>(null);
+  // Estados de Depósito
+  const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   const [amountToSave, setAmountToSave] = useState('');
 
-  const formatCurrency = (value: number | undefined | null) => {
-    const safeValue = value ?? 0; 
-    return safeValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  // --- HELPERS ---
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(value || 0);
   };
 
   const handleMoneyChange = (text: string, setter: (v: string) => void) => {
-    const numeric = text.replace(/\D/g, '');
-    if (!numeric) return setter('');
-    const floatValue = parseFloat(numeric) / 100;
-    setter(floatValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
+    const cleanValue = text.replace(/\D/g, '');
+
+    if (!cleanValue) {
+      setter('');
+      return;
+    }
+
+    const floatValue = parseFloat(cleanValue) / 100;
+
+    setter(
+      floatValue.toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    );
+  };
+
+  const parseValue = (formatted: string) => {
+    if (!formatted) return 0;
+    return parseFloat(formatted.replace(/\./g, '').replace(',', '.'));
+  };
+
+  const resetCreateModal = () => {
+    setModalVisible(false);
+    setTitle('');
+    setTarget('');
+    setSelectedColor(CORES_METAS[0]);
+  };
+
+  const resetDepositModal = () => {
+    setDepositModal(false);
+    setAmountToSave('');
+    setSelectedGoal(null);
   };
 
   const handleCreateGoal = () => {
-    const targetValue = parseFloat(target.replace(/\D/g, '')) / 100;
-    if (!title || !targetValue) return Alert.alert("Erro", "Preencha o nome e o valor alvo.");
-    addGoal({ title, target: targetValue, current: 0, color: selectedColor });
-    setModalVisible(false);
-    setTitle(''); setTarget('');
+    const targetVal = parseValue(target);
+
+    if (!title.trim() || targetVal <= 0) {
+      return Alert.alert('Erro', 'Preencha os dados corretamente.');
+    }
+
+    addGoal({
+      title: title.trim(),
+      target: targetVal,
+      current: 0,
+      color: selectedColor,
+    });
+
+    resetCreateModal();
   };
 
   const handleDeposit = () => {
-    const value = parseFloat(amountToSave.replace(/\D/g, '')) / 100;
-    if (value > balance) {
-      return Alert.alert("Saldo Insuficiente", `Você possui apenas ${formatCurrency(balance)} disponível.`);
+    const depositVal = parseValue(amountToSave);
+
+    if (depositVal <= 0) {
+      return Alert.alert('Erro', 'Digite um valor válido.');
     }
+
+    if (depositVal > balance) {
+      return Alert.alert('Erro', 'Saldo insuficiente.');
+    }
+
     if (selectedGoal) {
-      const newTotal = (selectedGoal.current || 0) + value;
-      updateGoal(selectedGoal.id, { current: newTotal });
-      setDepositModal(false);
-      setAmountToSave('');
+      updateGoal(selectedGoal.id, {
+        ...selectedGoal,
+        current: (selectedGoal.current || 0) + depositVal,
+      });
+
+      resetDepositModal();
     }
   };
 
+  const totalSaved = useMemo(
+    () => goals.reduce((acc: number, g: Goal) => acc + (g.current || 0), 0),
+    [goals]
+  );
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      {/* HEADER AJUSTADO (Mais elegante e menos alto) */}
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Minhas Metas</Text>
-        <TouchableOpacity onPress={() => setModalVisible(true)} style={styles.headerBtn}>
-          <Ionicons name="add-circle" size={28} color={colors.accent} />
-        </TouchableOpacity>
-      </View>
-
-      <FlatList
-        data={goals}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ padding: 20 }}
-        renderItem={({ item }) => {
-          const progress = Math.min((item.current || 0) / (item.target || 1), 1);
-          return (
-            <View style={[styles.goalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={styles.goalHeader}>
-                <Text style={[styles.goalTitle, { color: colors.text }]}>{item.title}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}>
-                   <TouchableOpacity onPress={() => { setSelectedGoal(item); setDepositModal(true); }}>
-                     <Text style={{ color: item.color, fontWeight: 'bold' }}>Guardar</Text>
-                   </TouchableOpacity>
-                   <TouchableOpacity onPress={() => {
-                     Alert.alert("Excluir", "Deseja apagar esta meta?", [
-                       { text: "Não", style: "cancel" },
-                       { text: "Sim", style: "destructive", onPress: () => deleteGoal(item.id) }
-                     ]);
-                   }}>
-                     <Ionicons name="trash-outline" size={18} color={colors.textSecondary} />
-                   </TouchableOpacity>
-                </View>
-              </View>
-              
-              <Text style={[styles.goalValues, { color: colors.textSecondary }]}>
-                {formatCurrency(item.current)} de {formatCurrency(item.target)}
-              </Text>
-
-              <View style={styles.progressBarBg}>
-                <View style={[styles.progressBarFill, { width: `${progress * 100}%`, backgroundColor: item.color }]} />
-              </View>
-            </View>
-          );
-        }}
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar
+        barStyle={theme === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.background}
       />
 
-      {/* MODAL CRIAR META */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
-            <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-              <View style={styles.modalHeaderRow}>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>Nova Meta</Text>
-                <TouchableOpacity onPress={() => setModalVisible(false)}>
-                   <Ionicons name="close" size={28} color={colors.text} />
-                </TouchableOpacity>
-              </View>
-              
-              <ScrollView showsVerticalScrollIndicator={false}>
-                <View style={[styles.highlightValueBlock, { backgroundColor: colors.background }]}>
-                  <Text style={[styles.highlightLabel, { color: colors.textSecondary }]}>QUANTO VOCÊ PRECISA?</Text>
-                  <TextInput
-                    style={[styles.hugeInput, { color: selectedColor }]}
-                    placeholder="R$ 0,00"
-                    placeholderTextColor={selectedColor + '50'}
-                    keyboardType="numeric"
-                    value={target}
-                    onChangeText={(t) => handleMoneyChange(t, setTarget)}
+      <Navbar theme={colors} />
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* HEADER */}
+        <View style={styles.pageHeader}>
+          <TouchableOpacity
+            style={[
+              styles.backButton,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="chevron-back" size={24} color={colors.text} />
+          </TouchableOpacity>
+
+          <Text style={[styles.pageTitle, { color: colors.text }]}>
+            Minhas Metas
+          </Text>
+        </View>
+
+        {/* HERO CARD */}
+        <View
+          style={[
+            styles.heroCard,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
+          <View>
+            <Text style={[styles.heroLabel, { color: colors.textSecondary }]}>
+              Total guardado
+            </Text>
+            <Text style={[styles.heroValue, { color: colors.text }]}>
+              {formatCurrency(totalSaved)}
+            </Text>
+          </View>
+
+          <View
+            style={[
+              styles.heroIconWrap,
+              { backgroundColor: `${colors.accent}15` },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="piggy-bank"
+              size={32}
+              color={colors.accent}
+            />
+          </View>
+        </View>
+
+        {/* BOTÃO NOVA META */}
+        <TouchableOpacity
+          style={[styles.newGoalBtn, { borderColor: colors.accent }]}
+          onPress={() => setModalVisible(true)}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="add-circle" size={22} color={colors.accent} />
+          <Text style={[styles.newGoalBtnText, { color: colors.accent }]}>
+            Nova Meta Financeira
+          </Text>
+        </TouchableOpacity>
+
+        {/* LISTA DE METAS */}
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>
+          Metas Ativas
+        </Text>
+
+        {goals.length === 0 ? (
+          <View
+            style={[
+              styles.emptyState,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="flag-variant-outline"
+              size={40}
+              color={colors.border}
+            />
+            <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>
+              Nenhuma meta ativa
+            </Text>
+          </View>
+        ) : (
+          goals.map((item: Goal) => {
+            const progress =
+              item.target > 0
+                ? Math.min((item.current / item.target) * 100, 100)
+                : 0;
+
+            return (
+              <TouchableOpacity
+                key={item.id}
+                onPress={() => {
+                  setSelectedGoal(item);
+                  setDepositModal(true);
+                }}
+                activeOpacity={0.9}
+                style={[
+                  styles.goalCard,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                ]}
+              >
+                <View style={styles.goalTop}>
+                  <View style={styles.goalInfo}>
+                    <View
+                      style={[
+                        styles.colorIndicator,
+                        { backgroundColor: item.color },
+                      ]}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[styles.goalTitle, { color: colors.text }]}
+                        numberOfLines={1}
+                      >
+                        {item.title}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.goalSubtitle,
+                          { color: colors.textSecondary },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {formatCurrency(item.current)} de {formatCurrency(item.target)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={[styles.goalPercent, { color: item.color }]}>
+                    {Math.round(progress)}%
+                  </Text>
+                </View>
+
+                <View
+                  style={[
+                    styles.progressTrack,
+                    { backgroundColor: colors.border },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.progressFill,
+                      {
+                        width: `${progress}%`,
+                        backgroundColor: item.color,
+                      },
+                    ]}
                   />
                 </View>
+              </TouchableOpacity>
+            );
+          })
+        )}
+      </ScrollView>
 
-                <Text style={styles.innerLabel}>NOME DO OBJETIVO</Text>
-                <TextInput
-                  style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
-                  placeholder="Ex: Viagem para o Japão"
-                  placeholderTextColor={colors.textSecondary}
-                  value={title}
-                  onChangeText={setTitle}
-                />
-
-                <View style={styles.chipsContainer}>
-                  {OBJETIVOS_SUGERIDOS.map(obj => (
-                    <TouchableOpacity 
-                      key={obj.id} 
-                      style={[styles.chip, { borderColor: title === obj.label ? colors.accent : colors.border }]}
-                      onPress={() => setTitle(obj.label)}
-                    >
-                      <MaterialCommunityIcons name={obj.icon as any} size={14} color={title === obj.label ? colors.accent : colors.textSecondary} />
-                      <Text style={[styles.chipText, { color: title === obj.label ? colors.text : colors.textSecondary }]}>{obj.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                <Text style={[styles.innerLabel, { marginTop: 10 }]}>ESCOLHA UMA COR</Text>
-                <View style={styles.colorRow}>
-                  {CORES_METAS.map(c => (
-                    <TouchableOpacity 
-                      key={c} 
-                      style={[styles.colorDot, { backgroundColor: c, borderWidth: selectedColor === c ? 3 : 0, borderColor: colors.text }]} 
-                      onPress={() => setSelectedColor(c)} 
-                    />
-                  ))}
-                </View>
-
-                <TouchableOpacity style={[styles.btn, { backgroundColor: selectedColor }]} onPress={handleCreateGoal}>
-                  <Text style={styles.btnText}>Criar Objetivo</Text>
+      {/* MODAL CRIAR META */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={resetCreateModal}
+      >
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={{ width: '100%' }}
+          >
+            <View
+              style={[styles.modalContent, { backgroundColor: colors.card }]}
+            >
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>
+                  Novo Objetivo
+                </Text>
+                <TouchableOpacity onPress={resetCreateModal}>
+                  <Ionicons name="close" size={28} color={colors.text} />
                 </TouchableOpacity>
-              </ScrollView>
+              </View>
+
+              <View
+                style={[
+                  styles.highlightInput,
+                  { backgroundColor: colors.background },
+                ]}
+              >
+                <Text
+                  style={[styles.highlightLabel, { color: colors.textSecondary }]}
+                >
+                  VALOR DO ALVO
+                </Text>
+                <TextInput
+                  style={[styles.hugeInput, { color: selectedColor }]}
+                  placeholder="R$ 0,00"
+                  placeholderTextColor={colors.textSecondary}
+                  keyboardType="numeric"
+                  value={target}
+                  onChangeText={(t) => handleMoneyChange(t, setTarget)}
+                />
+              </View>
+
+              <Text style={[styles.innerLabel, { color: colors.textSecondary }]}>
+                NOME DA META
+              </Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    color: colors.text,
+                    borderColor: colors.border,
+                    backgroundColor: colors.background,
+                  },
+                ]}
+                placeholder="Ex: Viagem, Carro, Reserva..."
+                placeholderTextColor={colors.textSecondary}
+                value={title}
+                onChangeText={setTitle}
+              />
+
+              <View style={styles.chipsRow}>
+                {OBJETIVOS_SUGERIDOS.map((obj) => (
+                  <TouchableOpacity
+                    key={obj.id}
+                    style={[
+                      styles.chip,
+                      {
+                        borderColor:
+                          title === obj.label ? colors.accent : colors.border,
+                        backgroundColor:
+                          title === obj.label ? `${colors.accent}10` : 'transparent',
+                      },
+                    ]}
+                    onPress={() => setTitle(obj.label)}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialCommunityIcons
+                      name={obj.icon as any}
+                      size={14}
+                      color={
+                        title === obj.label
+                          ? colors.accent
+                          : colors.textSecondary
+                      }
+                    />
+                    <Text style={[styles.chipText, { color: colors.text }]}>
+                      {obj.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text
+                style={[
+                  styles.innerLabel,
+                  { color: colors.textSecondary, marginTop: 15 },
+                ]}
+              >
+                COR DE IDENTIFICAÇÃO
+              </Text>
+
+              <View style={styles.colorRow}>
+                {CORES_METAS.map((c) => (
+                  <TouchableOpacity
+                    key={c}
+                    style={[
+                      styles.colorDot,
+                      {
+                        backgroundColor: c,
+                        borderWidth: selectedColor === c ? 3 : 0,
+                        borderColor: colors.text,
+                      },
+                    ]}
+                    onPress={() => setSelectedColor(c)}
+                    activeOpacity={0.8}
+                  />
+                ))}
+              </View>
+
+              <TouchableOpacity
+                style={[styles.btnAction, { backgroundColor: selectedColor }]}
+                onPress={handleCreateGoal}
+                activeOpacity={0.9}
+              >
+                <Text style={styles.btnText}>Criar Objetivo</Text>
+              </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>
         </View>
       </Modal>
 
-      {/* MODAL GUARDAR DINHEIRO */}
-      <Modal visible={depositModal} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card, alignItems: 'center' }]}>
-            <MaterialCommunityIcons name="piggy-bank-outline" size={50} color={selectedGoal?.color || colors.accent} />
-            <Text style={[styles.modalTitle, { color: colors.text, marginTop: 10 }]}>Guardar para {selectedGoal?.title}</Text>
-            
-            <View style={[styles.balanceBox, { backgroundColor: colors.background }]}>
-              <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Saldo Disponível</Text>
-              <Text style={{ color: colors.text, fontSize: 18, fontWeight: 'bold' }}>{formatCurrency(balance)}</Text>
-            </View>
+      {/* MODAL DEPÓSITO */}
+      <Modal
+        visible={depositModal}
+        animationType="fade"
+        transparent
+        onRequestClose={resetDepositModal}
+      >
+        <View style={styles.modalOverlayCenter}>
+          <View
+            style={[
+              styles.depositContent,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="piggy-bank"
+              size={48}
+              color={selectedGoal?.color || colors.accent}
+            />
+
+            <Text style={[styles.modalTitle, { color: colors.text, marginTop: 10 }]}>
+              Guardar Dinheiro
+            </Text>
+
+            <Text style={[styles.depositSubtitle, { color: colors.textSecondary }]}>
+              Saldo disponível: {formatCurrency(balance)}
+            </Text>
 
             <TextInput
-              style={[styles.hugeInput, { width: '100%', color: selectedGoal?.color || colors.accent, marginBottom: 20 }]}
+              style={[
+                styles.input,
+                styles.depositInput,
+                {
+                  color: colors.text,
+                  borderColor: colors.border,
+                  backgroundColor: colors.background,
+                },
+              ]}
               placeholder="R$ 0,00"
+              placeholderTextColor={colors.textSecondary}
               keyboardType="numeric"
               value={amountToSave}
               onChangeText={(t) => handleMoneyChange(t, setAmountToSave)}
-              autoFocus
             />
 
-            <TouchableOpacity 
-              style={[styles.btn, { width: '100%', backgroundColor: selectedGoal?.color || colors.accent }]} 
-              onPress={handleDeposit}
-            >
-              <Text style={styles.btnText}>Confirmar Depósito</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity onPress={() => setDepositModal(false)}><Text style={{ marginTop: 20, color: colors.textSecondary }}>Voltar</Text></TouchableOpacity>
+            <View style={styles.footerRow}>
+              <TouchableOpacity
+                style={[styles.btnSmall, { backgroundColor: colors.border }]}
+                onPress={resetDepositModal}
+                activeOpacity={0.85}
+              >
+                <Text style={{ color: colors.text, fontWeight: '700' }}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.btnSmall,
+                  {
+                    backgroundColor: selectedGoal?.color || colors.accent,
+                    flex: 2,
+                  },
+                ]}
+                onPress={handleDeposit}
+                activeOpacity={0.9}
+              >
+                <Text style={styles.btnText}>Confirmar</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    height: 60, // Altura padronizada (resolve a questão de estar "alta")
-    paddingHorizontal: 15, 
-    borderBottomWidth: 1 
+  container: {
+    flex: 1,
   },
-  headerBtn: { width: 40, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold' },
-  goalCard: { padding: 20, borderRadius: 24, marginBottom: 15, borderWidth: 1 },
-  goalHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, alignItems: 'center' },
-  goalTitle: { fontSize: 17, fontWeight: 'bold' },
-  goalValues: { fontSize: 13, marginBottom: 12 },
-  progressBarBg: { height: 10, borderRadius: 5, backgroundColor: 'rgba(0,0,0,0.1)', overflow: 'hidden' },
-  progressBarFill: { height: '100%' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 },
-  modalContent: { padding: 25, borderRadius: 32 },
-  modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle: { fontSize: 20, fontWeight: 'bold' },
-  highlightValueBlock: { padding: 25, borderRadius: 20, alignItems: 'center', marginBottom: 20 },
-  highlightLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1, marginBottom: 5 },
-  hugeInput: { fontSize: 36, fontWeight: '900', textAlign: 'center' },
-  innerLabel: { fontSize: 11, fontWeight: '700', color: '#999', marginBottom: 8, marginLeft: 5 },
-  input: { borderWidth: 1, borderRadius: 16, padding: 15, marginBottom: 15 },
-  chipsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 15 },
-  chip: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1 },
-  chipText: { fontSize: 10, marginLeft: 4, fontWeight: 'bold' },
-  colorRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 25 },
-  colorDot: { width: 32, height: 32, borderRadius: 16 },
-  btn: { padding: 18, borderRadius: 18, alignItems: 'center', elevation: 2 },
-  btnText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
-  balanceBox: { padding: 15, borderRadius: 16, width: '100%', alignItems: 'center', marginBottom: 10 }
+
+  // CORREÇÃO PRINCIPAL: removido o gap entre Navbar e conteúdo
+  scrollContent: {
+    paddingTop: 16,
+    paddingHorizontal: 20,
+    paddingBottom: 100,
+  },
+
+  pageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 15,
+    marginBottom: 20,
+  },
+
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+
+  pageTitle: {
+    fontSize: 26,
+    fontWeight: '900',
+  },
+
+  heroCard: {
+    padding: 20,
+    borderRadius: 24,
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+
+  heroLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginBottom: 5,
+  },
+
+  heroValue: {
+    fontSize: 32,
+    fontWeight: '900',
+  },
+
+  heroIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  newGoalBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 15,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    marginBottom: 30,
+  },
+
+  newGoalBtnText: {
+    marginLeft: 10,
+    fontWeight: '800',
+    fontSize: 15,
+  },
+
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 15,
+  },
+
+  goalCard: {
+    padding: 18,
+    borderRadius: 24,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+
+  goalTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 15,
+  },
+
+  goalInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 10,
+  },
+
+  colorIndicator: {
+    width: 4,
+    height: 30,
+    borderRadius: 2,
+    marginRight: 12,
+  },
+
+  goalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+
+  goalSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+
+  goalPercent: {
+    fontSize: 16,
+    fontWeight: '900',
+  },
+
+  progressTrack: {
+    height: 8,
+    borderRadius: 4,
+    width: '100%',
+    overflow: 'hidden',
+  },
+
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-end',
+  },
+
+  modalOverlayCenter: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+
+  modalContent: {
+    padding: 25,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+  },
+
+  depositContent: {
+    padding: 25,
+    borderRadius: 28,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+  },
+
+  highlightInput: {
+    padding: 20,
+    borderRadius: 20,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+
+  highlightLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+
+  hugeInput: {
+    fontSize: 38,
+    fontWeight: '900',
+  },
+
+  innerLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+
+  input: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 15,
+    fontSize: 16,
+  },
+
+  depositInput: {
+    width: '100%',
+    textAlign: 'center',
+    fontSize: 24,
+    fontWeight: '800',
+  },
+
+  depositSubtitle: {
+    marginBottom: 20,
+    marginTop: 4,
+  },
+
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 5,
+  },
+
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 6,
+  },
+
+  chipText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  colorRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginVertical: 15,
+  },
+
+  colorDot: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+
+  btnAction: {
+    padding: 18,
+    borderRadius: 20,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+
+  btnSmall: {
+    padding: 15,
+    borderRadius: 15,
+    alignItems: 'center',
+    flex: 1,
+  },
+
+  btnText: {
+    color: '#FFF',
+    fontWeight: '800',
+  },
+
+  footerRow: {
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%',
+  },
+
+  emptyState: {
+    padding: 40,
+    alignItems: 'center',
+    opacity: 0.7,
+    borderRadius: 24,
+    borderWidth: 1,
+  },
+
+  emptyTitle: {
+    marginTop: 10,
+    fontWeight: '700',
+  },
 });
