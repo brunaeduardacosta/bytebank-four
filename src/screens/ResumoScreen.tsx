@@ -5,7 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Dimensions,
+ Dimensions,
   ActivityIndicator,
   StatusBar,
   TextInput,
@@ -682,7 +682,10 @@ export default function ResumoScreen({ navigation }: any) {
                   <TouchableOpacity
                     key={item.id || index}
                     onPress={() =>
-                      navigation.navigate('TransactionForm', { transaction: item })
+                      navigation.navigate('TransactionForm', {
+                        transaction: item,
+                        type: item.type?.toLowerCase() === 'receita' ? 'receita' : 'despesa',
+                      })
                     }
                   >
                     <View

@@ -432,7 +432,10 @@ export default function DashboardScreen({ navigation }: any) {
                 <TouchableOpacity
                   key={transaction.id || index}
                   onPress={() =>
-                    navigation.navigate('TransactionForm', { transaction })
+                    navigation.navigate('TransactionForm', {
+                      transaction,
+                      type: transaction?.type || 'despesa',
+                    })
                   }
                   activeOpacity={0.9}
                 >
