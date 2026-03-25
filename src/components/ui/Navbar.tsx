@@ -4,11 +4,15 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Image
+  Image,
+  StatusBar,
+  Platform
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
+// Importação essencial para lidar com o "notch" e a barra de status
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface NavbarProps {
   theme: any;
@@ -17,6 +21,9 @@ interface NavbarProps {
 const Navbar: React.FC<NavbarProps> = ({ theme }) => {
   const { user } = useAuth();
   const navigation = useNavigation<any>();
+  
+  // Hook que calcula os espaços seguros da tela (em cima, embaixo, etc.)
+  const insets = useSafeAreaInsets();
 
   const userInitial = user?.displayName
     ? user.displayName.charAt(0).toUpperCase()
@@ -29,15 +36,26 @@ const Navbar: React.FC<NavbarProps> = ({ theme }) => {
         {
           backgroundColor: theme.card,
           borderBottomColor: theme.border,
+          // Aplica o preenchimento no topo igual ao tamanho da StatusBar/Notch
+          paddingTop: insets.top, 
         },
       ]}
     >
+      {/* Dica: Isso garante que os ícones do sistema (hora/bateria) 
+        se adaptem ao seu tema (dark ou light) 
+      */}
+      <StatusBar 
+        barStyle={theme.dark ? 'light-content' : 'dark-content'} 
+        backgroundColor="transparent" 
+        translucent 
+      />
+
       <View style={styles.inner}>
-        {/* ESQUERDA */}
+        {/* ESQUERDA: Logo e Nome */}
         <View style={styles.left}>
           <MaterialCommunityIcons
             name="shield-check"
-            size={22}
+            size={24}
             color={theme.accent}
             style={styles.logoIcon}
           />
@@ -53,7 +71,7 @@ const Navbar: React.FC<NavbarProps> = ({ theme }) => {
           </View>
         </View>
 
-        {/* DIREITA */}
+        {/* DIREITA: Notificações e Perfil */}
         <View style={styles.right}>
           {/* NOTIFICAÇÃO */}
           <TouchableOpacity
@@ -111,10 +129,13 @@ const Navbar: React.FC<NavbarProps> = ({ theme }) => {
 const styles = StyleSheet.create({
   container: {
     borderBottomWidth: 1,
+    // O container estica até o topo físico do celular
+    width: '100%',
   },
 
   inner: {
-    height: 60,
+    // Altura fixa para o conteúdo da navbar (sem contar a safe area)
+    height: 64, 
     paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
@@ -127,7 +148,7 @@ const styles = StyleSheet.create({
   },
 
   logoIcon: {
-    marginRight: 8,
+    marginRight: 6,
   },
 
   logoWrapper: {
@@ -153,18 +174,20 @@ const styles = StyleSheet.create({
   },
 
   iconButton: {
-    marginRight: 12,
-    padding: 6,
+    marginRight: 16,
+    padding: 4,
   },
 
   notificationBadge: {
     position: 'absolute',
-    top: 6,
-    right: 6,
+    top: 4,
+    right: 4,
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: '#EF4444',
+    borderWidth: 1.5,
+    borderColor: 'white', // Opcional: dá um destaque maior à bolinha
   },
 
   profile: {
@@ -173,8 +196,8 @@ const styles = StyleSheet.create({
   },
 
   avatar: {
-    width: 38,
-    height: 38,
+    width: 36,
+    height: 36,
     borderRadius: 12,
     borderWidth: 1,
     overflow: 'hidden',

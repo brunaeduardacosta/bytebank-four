@@ -3,6 +3,8 @@ import React from 'react';
 import { View, ActivityIndicator, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
+// 1. Importe o Provider do Safe Area
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import Routes from './src/navigation/Routes';
 
@@ -26,6 +28,7 @@ if (Platform.OS === 'ios' && typeof document !== 'undefined') {
 function AppContent() {
   const { loading } = useAuth();
   const { colors, theme } = useTheme();
+  
   const MyNavTheme = {
     ...(theme === 'dark' ? DarkTheme : DefaultTheme),
     colors: {
@@ -55,14 +58,16 @@ function AppContent() {
 export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      {/* 1. ThemeProvider e AuthProvider ficam por fora para fornecer dados ao Navigation */}
       <AuthProvider>
         <ThemeProvider>
-          <TransactionProvider>
-            <GoalsProvider>
-              <AppContent />
-            </GoalsProvider>
-          </TransactionProvider>
+          {/* 2. Envolva tudo com o SafeAreaProvider */}
+          <SafeAreaProvider>
+            <TransactionProvider>
+              <GoalsProvider>
+                <AppContent />
+              </GoalsProvider>
+            </TransactionProvider>
+          </SafeAreaProvider>
         </ThemeProvider>
       </AuthProvider>
     </GestureHandlerRootView>

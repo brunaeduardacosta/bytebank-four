@@ -8,8 +8,9 @@ import {
   Dimensions,
   ActivityIndicator,
   StatusBar,
+  TextInput,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { PieChart, BarChart } from 'react-native-gifted-charts';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -20,6 +21,7 @@ import Navbar from '../components/ui/Navbar';
 const { width } = Dimensions.get('window');
 
 type TabType = 'geral' | 'receita' | 'despesa';
+type PeriodFilter = 'todos' | 'hoje' | '7dias' | '30dias';
 
 export default function ResumoScreen({ navigation }: any) {
   const { user } = useAuth();
@@ -29,16 +31,23 @@ export default function ResumoScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [dbTransactions, setDbTransactions] = useState<any[]>([]);
 
+  // Filtros avançados
+  const [searchText, setSearchText] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('todos');
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Paginação
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 5;
+
   useEffect(() => {
     if (!user) {
       setLoading(false);
       return;
     }
 
-    const q = query(
-      collection(db, 'transactions'),
-      where('userId', '==', user.uid)
-    );
+    const q = query(collection(db, 'transactions'), where('userId', '==', user.uid));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map((doc) => ({
@@ -54,6 +63,11 @@ export default function ResumoScreen({ navigation }: any) {
     return () => unsubscribe();
   }, [user]);
 
+  // Sempre volta para a página 1 quando mudar filtros/aba
+  useEffect(() => {
+    setPage(1);
+  }, [tab, searchText, categoryFilter, periodFilter]);
+
   const formatCurrency = (value: number | undefined | null) => {
     const safeValue = value ?? 0;
     return safeValue.toLocaleString('pt-BR', {
@@ -62,56 +76,110 @@ export default function ResumoScreen({ navigation }: any) {
     });
   };
 
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('pt-BR');
+  };
+
+  // Categorias disponíveis dinamicamente
+  const availableCategories = useMemo(() => {
+    const categories = dbTransactions
+      .map((t) => t.category?.trim())
+      .filter(Boolean);
+
+    return [...new Set(categories)].sort();
+  }, [dbTransactions]);
+
+  // Função para filtrar por período
+  const matchesPeriod = (date: Date) => {
+    const now = new Date();
+
+    if (periodFilter === 'todos') return true;
+
+    if (periodFilter === 'hoje') {
+      return date.toDateString() === now.toDateString();
+    }
+
+    if (periodFilter === '7dias') {
+      const last7 = new Date();
+      last7.setDate(now.getDate() - 7);
+      return date >= last7 && date <= now;
+    }
+
+    if (periodFilter === '30dias') {
+      const last30 = new Date();
+      last30.setDate(now.getDate() - 30);
+      return date >= last30 && date <= now;
+    }
+
+    return true;
+  };
+
+  // Base filtrada para usar em tudo (lista, totais, gráficos)
+  const filteredTransactions = useMemo(() => {
+    let filtered = [...dbTransactions];
+
+    // Filtrar por aba
+    if (tab !== 'geral') {
+      filtered = filtered.filter((t) => t.type?.toLowerCase() === tab);
+    }
+
+    // Busca por descrição
+    if (searchText.trim()) {
+      filtered = filtered.filter((t) =>
+        String(t.description || '')
+          .toLowerCase()
+          .includes(searchText.trim().toLowerCase())
+      );
+    }
+
+    // Filtro por categoria
+    if (categoryFilter) {
+      filtered = filtered.filter((t) => t.category === categoryFilter);
+    }
+
+    // Filtro por período
+    filtered = filtered.filter((t) => matchesPeriod(t.date));
+
+    // Ordenação por data (mais recente primeiro)
+    filtered.sort((a, b) => b.date.getTime() - a.date.getTime());
+
+    return filtered;
+  }, [dbTransactions, tab, searchText, categoryFilter, periodFilter]);
+
+  // Totais (baseados nos filtros, mas respeitando o tipo)
   const totals = useMemo(() => {
-    const receita = dbTransactions
+    const receita = filteredTransactions
       .filter((t) => t.type?.toLowerCase() === 'receita')
       .reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
 
-    const despesa = dbTransactions
+    const despesa = filteredTransactions
       .filter((t) => t.type?.toLowerCase() === 'despesa')
       .reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
 
     const saldo = receita - despesa;
 
     return { receita, despesa, saldo };
-  }, [dbTransactions]);
+  }, [filteredTransactions]);
 
+  // Dados do gráfico de barras
   const barData = useMemo(
     () => [
-      {
-        value: totals.receita,
-        label: 'Receitas',
-        frontColor: '#16A34A',
-        spacing: 18,
-      },
-      {
-        value: totals.despesa,
-        label: 'Despesas',
-        frontColor: '#DC2626',
-      },
+      { value: totals.receita, label: 'Receitas', frontColor: '#16A34A', spacing: 18 },
+      { value: totals.despesa, label: 'Despesas', frontColor: '#DC2626' },
     ],
     [totals]
   );
 
+  // Dados do gráfico de pizza por categoria
   const getPieData = (type: 'receita' | 'despesa') => {
-    const filtered = dbTransactions.filter(
-      (t) => t.type?.toLowerCase() === type
-    );
-
-    const categories: {
-      [key: string]: { value: number; originalTransactions: any[] };
-    } = {};
+    const filtered = filteredTransactions.filter((t) => t.type?.toLowerCase() === type);
+    const categories: { [key: string]: { value: number; originalTransactions: any[] } } = {};
 
     filtered.forEach((t) => {
       const categoryName = t.category?.trim() || 'Sem categoria';
-
       if (!categories[categoryName]) {
-        categories[categoryName] = {
-          value: 0,
-          originalTransactions: [],
-        };
+        categories[categoryName] = { value: 0, originalTransactions: [] };
       }
-
       categories[categoryName].value += Number(t.amount || 0);
       categories[categoryName].originalTransactions.push(t);
     });
@@ -121,8 +189,7 @@ export default function ResumoScreen({ navigation }: any) {
         ? ['#065F46', '#059669', '#10B981', '#34D399', '#6EE7B7', '#A7F3D0']
         : ['#7F1D1D', '#B91C1C', '#DC2626', '#EF4444', '#F87171', '#FCA5A5'];
 
-    const totalType =
-      type === 'receita' ? totals.receita || 1 : totals.despesa || 1;
+    const totalType = type === 'receita' ? totals.receita || 1 : totals.despesa || 1;
 
     return Object.keys(categories)
       .map((category, index) => ({
@@ -137,15 +204,24 @@ export default function ResumoScreen({ navigation }: any) {
 
   const receitaPieData = useMemo(
     () => getPieData('receita'),
-    [dbTransactions, totals.receita]
+    [filteredTransactions, totals.receita]
   );
 
   const despesaPieData = useMemo(
     () => getPieData('despesa'),
-    [dbTransactions, totals.despesa]
+    [filteredTransactions, totals.despesa]
   );
 
   const currentPieData = tab === 'receita' ? receitaPieData : despesaPieData;
+
+  // Paginação
+  const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / itemsPerPage));
+
+  const paginatedTransactions = useMemo(() => {
+    const startIndex = (page - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredTransactions.slice(startIndex, endIndex);
+  }, [filteredTransactions, page]);
 
   const getDynamicBg = () => {
     if (tab === 'receita') return theme === 'dark' ? '#04170d' : '#f0fdf4';
@@ -153,16 +229,11 @@ export default function ResumoScreen({ navigation }: any) {
     return colors.background;
   };
 
-  const getTabAccent = (currentTab: TabType) => {
-    if (currentTab === 'receita') return '#16A34A';
-    if (currentTab === 'despesa') return '#DC2626';
-    return colors.accent;
-  };
-
-  const getTabIcon = (currentTab: TabType) => {
-    if (currentTab === 'geral') return 'stats-chart';
-    if (currentTab === 'receita') return 'arrow-down-circle';
-    return 'arrow-up-circle';
+  const clearFilters = () => {
+    setSearchText('');
+    setCategoryFilter(null);
+    setPeriodFilter('todos');
+    setPage(1);
   };
 
   if (loading) {
@@ -183,30 +254,6 @@ export default function ResumoScreen({ navigation }: any) {
     );
   }
 
-  const summaryList =
-    tab === 'geral'
-      ? [
-          {
-            label: 'Total Recebido',
-            value: totals.receita,
-            color: '#16A34A',
-            icon: 'arrow-down-circle',
-          },
-          {
-            label: 'Total Gasto',
-            value: totals.despesa,
-            color: '#DC2626',
-            icon: 'arrow-up-circle',
-          },
-          {
-            label: 'Saldo Líquido',
-            value: totals.saldo,
-            color: totals.saldo >= 0 ? '#2563EB' : '#F59E0B',
-            icon: 'wallet',
-          },
-        ]
-      : currentPieData;
-
   return (
     <View style={[styles.container, { backgroundColor: getDynamicBg() }]}>
       <StatusBar
@@ -214,10 +261,9 @@ export default function ResumoScreen({ navigation }: any) {
         backgroundColor={colors.card}
       />
 
-      {/* NAVBAR GLOBAL */}
       <Navbar theme={colors} />
 
-      {/* HEADER DA PÁGINA */}
+      {/* HEADER */}
       <View
         style={[
           styles.header,
@@ -234,10 +280,7 @@ export default function ResumoScreen({ navigation }: any) {
           onPress={() => navigation.goBack()}
           style={[
             styles.headerBtn,
-            {
-              backgroundColor: colors.card,
-              borderColor: colors.border,
-            },
+            { backgroundColor: colors.card, borderColor: colors.border },
           ]}
         >
           <Ionicons name="chevron-back" size={22} color={colors.text} />
@@ -253,16 +296,14 @@ export default function ResumoScreen({ navigation }: any) {
         </View>
 
         <TouchableOpacity
+          onPress={() => setShowFilters(!showFilters)}
           style={[
             styles.headerBtn,
-            {
-              backgroundColor: colors.card,
-              borderColor: colors.border,
-            },
+            { backgroundColor: colors.card, borderColor: colors.border },
           ]}
         >
           <Ionicons
-            name="calendar-outline"
+            name={showFilters ? 'options' : 'options-outline'}
             size={20}
             color={colors.textSecondary}
           />
@@ -281,7 +322,12 @@ export default function ResumoScreen({ navigation }: any) {
       >
         {(['geral', 'receita', 'despesa'] as TabType[]).map((item) => {
           const active = tab === item;
-          const accent = getTabAccent(item);
+          const accent =
+            item === 'receita'
+              ? '#16A34A'
+              : item === 'despesa'
+              ? '#DC2626'
+              : colors.accent;
 
           return (
             <TouchableOpacity
@@ -300,122 +346,222 @@ export default function ResumoScreen({ navigation }: any) {
               ]}
             >
               <Ionicons
-                name={getTabIcon(item) as any}
+                name={
+                  item === 'geral'
+                    ? 'stats-chart'
+                    : item === 'receita'
+                    ? 'arrow-down-circle'
+                    : 'arrow-up-circle'
+                }
                 size={16}
                 color={active ? '#fff' : colors.textSecondary}
               />
               <Text
                 style={[
                   styles.tabText,
-                  {
-                    color: active ? '#fff' : colors.textSecondary,
-                  },
+                  { color: active ? '#fff' : colors.textSecondary },
                 ]}
               >
-                {item === 'geral'
-                  ? 'Geral'
-                  : item === 'receita'
-                  ? 'Receitas'
-                  : 'Despesas'}
+                {item.toUpperCase()}
               </Text>
             </TouchableOpacity>
           );
         })}
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scroll}
-      >
-        {/* CARD DE DESTAQUE */}
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        {/* RESUMO RÁPIDO */}
+        <View style={styles.summaryRow}>
+          <View
+            style={[
+              styles.summaryCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+              Receitas
+            </Text>
+            <Text style={[styles.summaryValue, { color: '#16A34A' }]}>
+              {formatCurrency(totals.receita)}
+            </Text>
+          </View>
+
+          <View
+            style={[
+              styles.summaryCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+              Despesas
+            </Text>
+            <Text style={[styles.summaryValue, { color: '#DC2626' }]}>
+              {formatCurrency(totals.despesa)}
+            </Text>
+          </View>
+        </View>
+
         <View
           style={[
-            styles.heroCard,
-            {
-              backgroundColor: colors.card,
-              borderColor: colors.border,
-            },
+            styles.balanceCard,
+            { backgroundColor: colors.card, borderColor: colors.border },
           ]}
         >
-          <View style={styles.heroTopRow}>
-            <View>
-              <Text style={[styles.heroLabel, { color: colors.textSecondary }]}>
-                {tab === 'geral'
-                  ? 'Saldo Atual'
-                  : tab === 'receita'
-                  ? 'Total de Receitas'
-                  : 'Total de Despesas'}
+          <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>Saldo</Text>
+          <Text
+            style={[
+              styles.balanceValue,
+              { color: totals.saldo >= 0 ? '#16A34A' : '#DC2626' },
+            ]}
+          >
+            {formatCurrency(totals.saldo)}
+          </Text>
+        </View>
+
+        {/* FILTROS AVANÇADOS */}
+        {showFilters && (
+          <View
+            style={[
+              styles.filterCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <View style={styles.filterHeader}>
+              <Text style={[styles.filterTitle, { color: colors.text }]}>
+                Filtros avançados
               </Text>
 
-              <Text style={[styles.heroValue, { color: colors.text }]}>
-                {formatCurrency(
-                  tab === 'geral'
-                    ? totals.saldo
-                    : tab === 'receita'
-                    ? totals.receita
-                    : totals.despesa
-                )}
-              </Text>
+              <TouchableOpacity onPress={clearFilters}>
+                <Text style={[styles.clearFilterText, { color: colors.accent }]}>
+                  Limpar
+                </Text>
+              </TouchableOpacity>
             </View>
 
+            {/* Busca */}
             <View
               style={[
-                styles.heroIconBadge,
+                styles.searchBox,
                 {
-                  backgroundColor:
-                    tab === 'geral'
-                      ? theme === 'dark'
-                        ? '#1E3A8A'
-                        : '#DBEAFE'
-                      : tab === 'receita'
-                      ? theme === 'dark'
-                        ? '#14532D'
-                        : '#DCFCE7'
-                      : theme === 'dark'
-                      ? '#7F1D1D'
-                      : '#FEE2E2',
+                  backgroundColor: theme === 'dark' ? '#0F172A' : '#F8FAFC',
+                  borderColor: colors.border,
                 },
               ]}
             >
-              <Ionicons
-                name={
-                  tab === 'geral'
-                    ? 'wallet-outline'
-                    : tab === 'receita'
-                    ? 'trending-up-outline'
-                    : 'trending-down-outline'
-                }
-                size={24}
-                color={
-                  tab === 'geral'
-                    ? '#2563EB'
-                    : tab === 'receita'
-                    ? '#16A34A'
-                    : '#DC2626'
-                }
+              <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
+              <TextInput
+                placeholder="Buscar por descrição..."
+                placeholderTextColor={colors.textSecondary}
+                value={searchText}
+                onChangeText={setSearchText}
+                style={[styles.searchInput, { color: colors.text }]}
               />
             </View>
-          </View>
 
-          <Text style={[styles.heroHint, { color: colors.textSecondary }]}>
-            {tab === 'geral'
-              ? totals.saldo >= 0
-                ? 'Seu fluxo financeiro está positivo.'
-                : 'Atenção: suas despesas estão acima das receitas.'
-              : tab === 'receita'
-              ? 'Acompanhe de onde vem sua renda.'
-              : 'Veja onde seu dinheiro está sendo gasto.'}
-          </Text>
-        </View>
+            {/* Período */}
+            <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>
+              Período
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterChipsRow}
+            >
+              {[
+                { key: 'todos', label: 'Todos' },
+                { key: 'hoje', label: 'Hoje' },
+                { key: '7dias', label: '7 dias' },
+                { key: '30dias', label: '30 dias' },
+              ].map((item) => {
+                const active = periodFilter === item.key;
+                return (
+                  <TouchableOpacity
+                    key={item.key}
+                    onPress={() => setPeriodFilter(item.key as PeriodFilter)}
+                    style={[
+                      styles.chip,
+                      {
+                        backgroundColor: active ? colors.accent : colors.background,
+                        borderColor: active ? colors.accent : colors.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        { color: active ? '#fff' : colors.text },
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* Categorias */}
+            <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>
+              Categoria
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterChipsRow}
+            >
+              <TouchableOpacity
+                onPress={() => setCategoryFilter(null)}
+                style={[
+                  styles.chip,
+                  {
+                    backgroundColor: categoryFilter === null ? colors.accent : colors.background,
+                    borderColor: categoryFilter === null ? colors.accent : colors.border,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    { color: categoryFilter === null ? '#fff' : colors.text },
+                  ]}
+                >
+                  Todas
+                </Text>
+              </TouchableOpacity>
+
+              {availableCategories.map((category) => {
+                const active = categoryFilter === category;
+                return (
+                  <TouchableOpacity
+                    key={category}
+                    onPress={() => setCategoryFilter(active ? null : category)}
+                    style={[
+                      styles.chip,
+                      {
+                        backgroundColor: active ? colors.accent : colors.background,
+                        borderColor: active ? colors.accent : colors.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        { color: active ? '#fff' : colors.text },
+                      ]}
+                    >
+                      {category}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
 
         {/* GRÁFICO PRINCIPAL */}
         <View
           style={[
             styles.mainCard,
-            {
-              backgroundColor: colors.card,
-              borderColor: colors.border,
-            },
+            { backgroundColor: colors.card, borderColor: colors.border },
           ]}
         >
           {tab === 'geral' ? (
@@ -435,10 +581,7 @@ export default function ResumoScreen({ navigation }: any) {
                 hideRules
                 height={220}
                 spacing={30}
-                yAxisTextStyle={{
-                  color: colors.textSecondary,
-                  fontSize: 10,
-                }}
+                yAxisTextStyle={{ color: colors.textSecondary, fontSize: 10 }}
                 xAxisLabelTextStyle={{
                   color: colors.text,
                   fontWeight: '700',
@@ -449,9 +592,7 @@ export default function ResumoScreen({ navigation }: any) {
           ) : (
             <View style={{ alignItems: 'center' }}>
               <Text style={[styles.cardTitle, { color: colors.textSecondary }]}>
-                {tab === 'receita'
-                  ? 'Receitas por Categoria'
-                  : 'Despesas por Categoria'}
+                {tab === 'receita' ? 'Receitas por Categoria' : 'Despesas por Categoria'}
               </Text>
 
               <PieChart
@@ -474,9 +615,7 @@ export default function ResumoScreen({ navigation }: any) {
                         color: colors.text,
                       }}
                     >
-                      {formatCurrency(
-                        tab === 'receita' ? totals.receita : totals.despesa
-                      )}
+                      {formatCurrency(tab === 'receita' ? totals.receita : totals.despesa)}
                     </Text>
                     <Text
                       style={{
@@ -491,131 +630,201 @@ export default function ResumoScreen({ navigation }: any) {
                   </View>
                 )}
               />
+
+              {/* LEGENDA DO GRÁFICO */}
+              {currentPieData.length > 0 && (
+                <View style={styles.legendWrapper}>
+                  {currentPieData.slice(0, 5).map((item, index) => (
+                    <View key={index} style={styles.legendItem}>
+                      <View
+                        style={[
+                          styles.legendDot,
+                          { backgroundColor: item.color },
+                        ]}
+                      />
+                      <Text
+                        style={[styles.legendText, { color: colors.text }]}
+                        numberOfLines={1}
+                      >
+                        {item.text} ({item.percent}%)
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
           )}
         </View>
 
-        {/* LISTAGEM */}
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          {tab === 'geral'
-            ? 'Indicadores Financeiros'
-            : tab === 'receita'
-            ? 'Categorias de Receita'
-            : 'Categorias de Despesa'}
-        </Text>
-
-        {summaryList.map((item: any, index: number) => (
-          <TouchableOpacity
-            key={index}
-            activeOpacity={0.85}
-            onPress={() => {
-              if (tab !== 'geral' && item.transactions?.length > 0) {
-                navigation.navigate('TransactionForm', {
-                  transaction: {
-                    ...item.transactions[0],
-                    date:
-                      item.transactions[0].date instanceof Date
-                        ? item.transactions[0].date.toISOString()
-                        : item.transactions[0].date,
-                  },
-                  type: tab,
-                });
-              }
-            }}
-            style={[
-              styles.row,
-              {
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-              },
-            ]}
-          >
-            <View style={styles.rowLeft}>
-              <View style={[styles.dot, { backgroundColor: item.color }]} />
-
-              <View>
-                <Text style={[styles.rowTitle, { color: colors.text }]}>
-                  {item.text || item.label}
-                </Text>
-
-                {tab !== 'geral' && (
-                  <Text
-                    style={[styles.rowSubtitle, { color: colors.textSecondary }]}
-                  >
-                    {item.percent}% do total
-                  </Text>
-                )}
-              </View>
-            </View>
-
-            <View style={styles.rowRight}>
-              <Text style={[styles.rowValue, { color: colors.text }]}>
-                {formatCurrency(item.value)}
-              </Text>
-
-              {tab === 'geral' ? (
-                <Ionicons
-                  name={item.icon}
-                  size={18}
-                  color={item.color}
-                  style={{ marginLeft: 8 }}
-                />
-              ) : (
-                <Ionicons
-                  name="chevron-forward"
-                  size={16}
-                  color={colors.textSecondary}
-                  style={{ marginLeft: 8 }}
-                />
-              )}
-            </View>
-          </TouchableOpacity>
-        ))}
-
-        {/* ESTADO VAZIO */}
-        {dbTransactions.length === 0 && (
-          <View
-            style={[
-              styles.emptyState,
-              {
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-              },
-            ]}
-          >
-            <Ionicons
-              name="analytics-outline"
-              size={40}
-              color={colors.textSecondary}
-            />
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              Nenhum dado para exibir
+        {/* LISTA FILTRADA + PAGINADA */}
+        <View style={{ marginTop: 4 }}>
+          <View style={styles.listHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Lançamentos
             </Text>
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              Adicione receitas e despesas para visualizar análises, categorias e
-              comportamento financeiro.
+            <Text style={[styles.resultCount, { color: colors.textSecondary }]}>
+              {filteredTransactions.length} resultado(s)
             </Text>
           </View>
-        )}
+
+          {paginatedTransactions.length > 0 ? (
+            <>
+              {paginatedTransactions.map((item, index) => {
+                const isIncome = item.type?.toLowerCase() === 'receita';
+
+                return (
+                  <TouchableOpacity
+                    key={item.id || index}
+                    onPress={() =>
+                      navigation.navigate('TransactionForm', { transaction: item })
+                    }
+                  >
+                    <View
+                      style={[
+                        styles.itemCard,
+                        {
+                          backgroundColor: colors.card,
+                          borderColor: colors.border,
+                        },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.iconBox,
+                          {
+                            backgroundColor: isIncome ? '#16A34A15' : '#DC262615',
+                          },
+                        ]}
+                      >
+                        <MaterialCommunityIcons
+                          name={isIncome ? 'plus' : 'minus'}
+                          size={20}
+                          color={isIncome ? '#16A34A' : '#DC2626'}
+                        />
+                      </View>
+
+                      <View style={styles.cardLeft}>
+                        <Text
+                          style={[styles.itemDesc, { color: colors.text }]}
+                          numberOfLines={1}
+                        >
+                          {item.description || 'Sem descrição'}
+                        </Text>
+
+                        <View style={styles.itemMetaRow}>
+                          <Text
+                            style={[styles.itemMeta, { color: colors.textSecondary }]}
+                          >
+                            {item.category || 'Sem categoria'}
+                          </Text>
+                          <Text
+                            style={[styles.itemMetaDot, { color: colors.textSecondary }]}
+                          >
+                            •
+                          </Text>
+                          <Text
+                            style={[styles.itemMeta, { color: colors.textSecondary }]}
+                          >
+                            {formatDate(item.date)}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Text
+                        style={[
+                          styles.itemAmount,
+                          { color: isIncome ? '#16A34A' : '#DC2626' },
+                        ]}
+                      >
+                        {isIncome ? '+' : '-'} {formatCurrency(item.amount)}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+
+              {/* PAGINAÇÃO */}
+              <View
+                style={[
+                  styles.paginationCard,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                ]}
+              >
+                <TouchableOpacity
+                  disabled={page === 1}
+                  onPress={() => setPage((prev) => Math.max(1, prev - 1))}
+                  style={[
+                    styles.paginationBtn,
+                    {
+                      backgroundColor:
+                        page === 1
+                          ? theme === 'dark'
+                            ? '#1F2937'
+                            : '#E5E7EB'
+                          : colors.accent,
+                      opacity: page === 1 ? 0.6 : 1,
+                    },
+                  ]}
+                >
+                  <Ionicons name="chevron-back" size={16} color="#fff" />
+                  <Text style={styles.paginationBtnText}>Anterior</Text>
+                </TouchableOpacity>
+
+                <Text style={[styles.pageText, { color: colors.text }]}>
+                  Página {page} de {totalPages}
+                </Text>
+
+                <TouchableOpacity
+                  disabled={page >= totalPages}
+                  onPress={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                  style={[
+                    styles.paginationBtn,
+                    {
+                      backgroundColor:
+                        page >= totalPages
+                          ? theme === 'dark'
+                            ? '#1F2937'
+                            : '#E5E7EB'
+                          : colors.accent,
+                      opacity: page >= totalPages ? 0.6 : 1,
+                    },
+                  ]}
+                >
+                  <Text style={styles.paginationBtnText}>Próxima</Text>
+                  <Ionicons name="chevron-forward" size={16} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <View
+              style={[
+                styles.emptyState,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+            >
+              <Ionicons
+                name="search-outline"
+                size={34}
+                color={colors.textSecondary}
+              />
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                Nenhum lançamento encontrado
+              </Text>
+              <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+                Tente ajustar os filtros para visualizar seus dados.
+              </Text>
+            </View>
+          )}
+        </View>
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-
-  loading: {
-    flex: 1,
-  },
-
-  loadingContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  container: { flex: 1 },
+  loading: { flex: 1 },
+  loadingContent: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   header: {
     flexDirection: 'row',
@@ -627,7 +836,6 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     borderBottomWidth: 1,
   },
-
   headerBtn: {
     width: 44,
     height: 44,
@@ -636,19 +844,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
   },
-
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 10,
-  },
-
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-
+  headerCenter: { flex: 1, alignItems: 'center', paddingHorizontal: 10 },
+  headerTitle: { fontSize: 18, fontWeight: '800', textAlign: 'center' },
   headerSubtitle: {
     fontSize: 11,
     marginTop: 2,
@@ -665,7 +862,6 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
   },
-
   tabItem: {
     flex: 1,
     flexDirection: 'row',
@@ -675,11 +871,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 14,
   },
-
-  tabText: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
+  tabText: { fontSize: 12, fontWeight: '800' },
 
   scroll: {
     paddingHorizontal: 20,
@@ -687,51 +879,97 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
 
-  heroCard: {
-    borderRadius: 28,
-    padding: 20,
+  summaryRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  summaryCard: {
+    flex: 1,
     borderWidth: 1,
-    marginBottom: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    elevation: 3,
+    borderRadius: 22,
+    padding: 16,
+  },
+  summaryLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  summaryValue: {
+    fontSize: 16,
+    fontWeight: '900',
   },
 
-  heroTopRow: {
+  balanceCard: {
+    borderWidth: 1,
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: 16,
+  },
+  balanceLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  balanceValue: {
+    fontSize: 22,
+    fontWeight: '900',
+  },
+
+  filterCard: {
+    borderWidth: 1,
+    borderRadius: 24,
+    padding: 16,
+    marginBottom: 18,
+  },
+  filterHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-
-  heroLabel: {
+  filterTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  clearFilterText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    marginTop: 14,
+    marginBottom: 14,
+    height: 48,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 14,
+  },
+  filterLabel: {
     fontSize: 12,
     fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    marginBottom: 8,
+    marginTop: 2,
   },
-
-  heroValue: {
-    fontSize: 28,
-    fontWeight: '900',
-    marginTop: 8,
-    maxWidth: width * 0.62,
+  filterChipsRow: {
+    paddingBottom: 8,
   },
-
-  heroHint: {
-    marginTop: 14,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '500',
+  chip: {
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginRight: 8,
+    marginBottom: 8,
   },
-
-  heroIconBadge: {
-    width: 54,
-    height: 54,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
+  chipText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 
   mainCard: {
@@ -746,7 +984,6 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     elevation: 4,
   },
-
   cardTitle: {
     fontSize: 11,
     fontWeight: '800',
@@ -756,77 +993,132 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+  legendWrapper: {
+    width: '100%',
+    marginTop: 20,
+    gap: 8,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 99,
+    marginRight: 8,
+  },
+  legendText: {
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+  },
+
+  listHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 14,
     marginLeft: 4,
   },
-
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 18,
-    borderRadius: 22,
-    marginBottom: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-
-  rowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    paddingRight: 10,
-  },
-
-  rowRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  rowTitle: {
-    fontSize: 15,
+  sectionTitle: {
+    fontSize: 18,
     fontWeight: '800',
   },
-
-  rowSubtitle: {
-    fontSize: 11,
-    marginTop: 4,
+  resultCount: {
+    fontSize: 12,
     fontWeight: '600',
   },
 
-  rowValue: {
-    fontSize: 14,
+  itemCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 0,
+    padding: 14,
+    borderRadius: 22,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  iconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardLeft: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  itemDesc: {
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  itemMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    flexWrap: 'wrap',
+  },
+  itemMeta: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  itemMetaDot: {
+    marginHorizontal: 6,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  itemAmount: {
     fontWeight: '900',
+    fontSize: 15,
+    marginLeft: 10,
   },
 
-  dot: {
-    width: 13,
-    height: 13,
-    borderRadius: 999,
-    marginRight: 12,
+  paginationCard: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderRadius: 22,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  paginationBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+  },
+  paginationBtnText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  pageText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 
   emptyState: {
-    marginTop: 8,
-    padding: 24,
-    borderRadius: 24,
     borderWidth: 1,
+    borderRadius: 24,
+    paddingVertical: 28,
+    paddingHorizontal: 18,
     alignItems: 'center',
-    marginBottom: 30,
+    justifyContent: 'center',
   },
-
   emptyTitle: {
+    marginTop: 10,
     fontSize: 16,
     fontWeight: '800',
-    marginTop: 12,
   },
-
-  emptyText: {
+  emptySubtitle: {
+    marginTop: 6,
     fontSize: 13,
     textAlign: 'center',
-    lineHeight: 20,
-    marginTop: 8,
+    lineHeight: 18,
   },
 });
