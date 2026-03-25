@@ -13,7 +13,7 @@ import { auth } from '../services/firebase';
 // --- INTERFACES ---
 interface AuthContextData {
   user: User | null;
-  loading: boolean;
+  loading: boolean; // Indica o carregamento inicial do app (Splash Screen)
   signIn: (email: string, senha: string) => Promise<void>;
   signUp: (nome: string, email: string, senha: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -67,12 +67,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       await signInWithEmailAndPassword(auth, email, senha);
     } catch (error: any) {
-      // Lança o erro traduzido para a tela mostrar ao usuário
       throw new Error(translateFirebaseError(error.code));
     }
   };
 
-  // 3. FUNÇÃO DE CADASTRO (Agora aceita e salva o Nome!)
+  // 3. FUNÇÃO DE CADASTRO (Corrigida para não quebrar a tipagem do Firebase)
   const signUp = async (nome: string, email: string, senha: string) => {
     try {
       // Cria a conta no Firebase
@@ -84,8 +83,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           displayName: nome
         });
         
-        // Atualizamos o estado local para refletir o nome na hora
-        setUser({ ...userCredential.user, displayName: nome } as User);
+        // CORREÇÃO: Força o Firebase a recarregar o usuário para trazer o nome novo
+        // e atualiza o estado com o objeto de usuário ORIGINAL e INTACTO.
+        await userCredential.user.reload();
+        setUser(auth.currentUser); 
       }
     } catch (error: any) {
       throw new Error(translateFirebaseError(error.code));
@@ -107,6 +108,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await firebaseSignOut(auth);
     } catch (error) {
       console.error("Erro ao fazer logout:", error);
+      // Aqui podemos optar por não lançar erro para a UI, pois falhas de logout
+      // geralmente são ignoradas para não prender o usuário na tela.
     }
   };
 

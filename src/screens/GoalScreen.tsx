@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  DimensionValue,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Navbar from '../components/ui/Navbar';
@@ -98,41 +99,49 @@ export default function GoalsScreen({ navigation }: any) {
     setSelectedGoal(null);
   };
 
-  const handleCreateGoal = () => {
+  // Aqui consumimos a função Assíncrona que blindamos no GoalsContext
+  const handleCreateGoal = async () => {
     const targetVal = parseValue(target);
 
     if (!title.trim() || targetVal <= 0) {
-      return Alert.alert('Erro', 'Preencha os dados corretamente.');
+      return Alert.alert('Atenção', 'Preencha um título e um valor maior que zero.');
     }
 
-    addGoal({
-      title: title.trim(),
-      target: targetVal,
-      current: 0,
-      color: selectedColor,
-    });
-
-    resetCreateModal();
+    try {
+      await addGoal({
+        title: title.trim(),
+        target: targetVal,
+        current: 0,
+        color: selectedColor,
+      });
+      resetCreateModal();
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível criar a meta. Verifique sua conexão.');
+    }
   };
 
-  const handleDeposit = () => {
+  // Aqui também consumimos de forma Assíncrona
+  const handleDeposit = async () => {
     const depositVal = parseValue(amountToSave);
 
     if (depositVal <= 0) {
-      return Alert.alert('Erro', 'Digite um valor válido.');
+      return Alert.alert('Atenção', 'Digite um valor válido para guardar.');
     }
 
     if (depositVal > balance) {
-      return Alert.alert('Erro', 'Saldo insuficiente.');
+      return Alert.alert('Saldo insuficiente', 'Você não tem esse valor em conta.');
     }
 
     if (selectedGoal) {
-      updateGoal(selectedGoal.id, {
-        ...selectedGoal,
-        current: (selectedGoal.current || 0) + depositVal,
-      });
-
-      resetDepositModal();
+      try {
+        await updateGoal(selectedGoal.id, {
+          ...selectedGoal,
+          current: (selectedGoal.current || 0) + depositVal,
+        });
+        resetDepositModal();
+      } catch (error) {
+        Alert.alert('Erro', 'Falha ao guardar o dinheiro.');
+      }
     }
   };
 
@@ -154,6 +163,9 @@ export default function GoalsScreen({ navigation }: any) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
+        {/* Espaçador padronizado para evitar o sumiço do conteúdo embaixo da Navbar */}
+        <View style={styles.navbarSpacer} />
+
         {/* HEADER */}
         <View style={styles.pageHeader}>
           <TouchableOpacity
@@ -297,7 +309,7 @@ export default function GoalsScreen({ navigation }: any) {
                     style={[
                       styles.progressFill,
                       {
-                        width: `${progress}%`,
+                        width: `${progress}%` as DimensionValue, // TIPAGEM CORRIGIDA AQUI
                         backgroundColor: item.color,
                       },
                     ]}
@@ -523,7 +535,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // CORREÇÃO PRINCIPAL: removido o gap entre Navbar e conteúdo
+  navbarSpacer: {
+    height: Platform.OS === 'ios' ? 90 : 70,
+  },
+
   scrollContent: {
     paddingTop: 16,
     paddingHorizontal: 20,

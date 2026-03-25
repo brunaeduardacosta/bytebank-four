@@ -8,12 +8,14 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
-  ScrollView
+  ScrollView,
+  Alert
 } from 'react-native';
 
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTransactions } from '../context/TransactionContext';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext'; // 🔥 Importação do Tema
 
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -21,6 +23,7 @@ import { db } from '../services/firebase';
 export default function OnboardingScreen({ navigation }: any) {
   const { user } = useAuth();
   const { addTransaction } = useTransactions();
+  const { colors, theme } = useTheme(); // 🔥 Consumindo as cores dinâmicas
 
   const [ocupacao, setOcupacao] = useState('');
   const [renda, setRenda] = useState('');
@@ -42,7 +45,6 @@ export default function OnboardingScreen({ navigation }: any) {
 
   const sugestoesOrdenadas = [...sugestoesOcupacaoBase].sort();
 
-  // Se o campo estiver vazio, retorna tudo. Se tiver texto, filtra.
   const sugestoesFiltradas = sugestoesOrdenadas.filter(item =>
     item.toLowerCase().includes(ocupacao.toLowerCase())
   );
@@ -73,8 +75,8 @@ export default function OnboardingScreen({ navigation }: any) {
   const handleFinish = async () => {
     if (!user) return;
 
-    if (!ocupacao) {
-      alert('Por favor, informe sua ocupação.');
+    if (!ocupacao.trim()) {
+      Alert.alert('Atenção', 'Por favor, informe sua ocupação.');
       return;
     }
 
@@ -82,33 +84,43 @@ export default function OnboardingScreen({ navigation }: any) {
       const saldoNumerico = parseFloat(saldo.replace(/\D/g, '')) / 100 || 0;
       const rendaNumerica = parseFloat(renda.replace(/\D/g, '')) / 100 || 0;
 
+      // 1. SALVA NO FIRESTORE (A parte mais importante!)
       const userRef = doc(db, 'users', user.uid);
-
       await setDoc(
         userRef,
         {
-          ocupacao: ocupacao,
+          ocupacao: ocupacao.trim(),
           rendaMensal: rendaNumerica,
           objetivoPrincipal: objetivo || 'Não informado',
-          onboardingCompleted: true,
+          onboardingCompleted: true, // ✅ A Flag Mágica!
           atualizadoEm: new Date()
         },
         { merge: true }
       );
 
+      // 2. TENTA ADICIONAR O SALDO (Isolado para não quebrar o fluxo se falhar)
       if (saldoNumerico > 0) {
-        addTransaction({
-          description: 'Saldo Inicial',
-          amount: saldoNumerico,
-          type: 'receita',
-          category: 'Ajuste'
-        });
+        try {
+          await addTransaction({
+            description: 'Saldo Inicial',
+            amount: saldoNumerico,
+            type: 'receita',
+            category: 'Ajuste',
+          });
+        } catch (e) {
+          console.log('Aviso: Falha ao registrar saldo inicial, mas o onboarding continuou.', e);
+        }
       }
 
-      navigation.replace('Dashboard');
+      // 3. LIMPA A PILHA DE NAVEGAÇÃO E VAI PRA DASHBOARD
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Dashboard' }],
+      });
+
     } catch (error) {
       console.error('Erro ao guardar os dados: ', error);
-      alert('Erro ao salvar. Tente novamente.');
+      Alert.alert('Erro', 'Não foi possível salvar. Verifique sua internet.');
     }
   };
 
@@ -120,20 +132,27 @@ export default function OnboardingScreen({ navigation }: any) {
       await setDoc(
         userRef,
         {
-          onboardingCompleted: true,
+          onboardingCompleted: true, // ✅ Salva a flag mesmo se pular
           atualizadoEm: new Date()
         },
         { merge: true }
       );
 
-      navigation.replace('Dashboard');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Dashboard' }],
+      });
     } catch {
-      navigation.replace('Dashboard');
+      // Falha de segurança, força a ida de qualquer jeito
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Dashboard' }],
+      });
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
@@ -141,44 +160,47 @@ export default function OnboardingScreen({ navigation }: any) {
         {/* HEADER */}
         <View style={styles.header}>
           <View style={{ width: 60 }} />
-          <TouchableOpacity onPress={handleSkip} style={styles.skipBtn}>
-            <Text style={styles.skipText}>Pular</Text>
-            <Ionicons name="chevron-forward" size={16} color="#6B7280" />
+          <TouchableOpacity onPress={handleSkip} style={[styles.skipBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.skipText, { color: colors.textSecondary }]}>Pular</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
-       <ScrollView
-         showsVerticalScrollIndicator={false}
-         contentContainerStyle={styles.content}
-         keyboardShouldPersistTaps="handled"
-       >
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+        >
           {/* TOPO */}
           <View style={styles.welcomeHeader}>
-            <View style={styles.iconCircle}>
-              <MaterialCommunityIcons name="hand-wave" size={36} color="#47A138" />
+            <View style={[styles.iconCircle, { backgroundColor: `${colors.accent}15` }]}>
+              <MaterialCommunityIcons name="hand-wave" size={36} color={colors.accent} />
             </View>
 
-            <Text style={styles.title}>Olá, {firstName}!</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Olá, {firstName}!</Text>
 
-            <Text style={styles.highlightSubtitle}>
+            <Text style={[styles.highlightSubtitle, { color: colors.textSecondary }]}>
               Vamos configurar sua experiência financeira de forma inteligente.
             </Text>
 
-            <Text style={styles.mainEmphasis}>
+            <Text style={[styles.mainEmphasis, { color: colors.accent }]}>
               Leva menos de 1 minuto.
             </Text>
           </View>
 
           {/* OCUPAÇÃO */}
-          <Text style={styles.label}>1. Qual é a sua principal ocupação?</Text>
-          <Text style={styles.helperText}>
+          <Text style={[styles.label, { color: colors.text }]}>1. Qual é a sua principal ocupação?</Text>
+          <Text style={[styles.helperText, { color: colors.textSecondary }]}>
             Isso nos ajuda a personalizar sua experiência.
           </Text>
           <View style={{ position: 'relative', zIndex: 999 }}>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input, 
+                { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }
+              ]}
               placeholder="Ex: Desenvolvedor, Advogado..."
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={colors.textSecondary}
               value={ocupacao}
               onChangeText={(text) => {
                   setOcupacao(text);
@@ -188,19 +210,18 @@ export default function OnboardingScreen({ navigation }: any) {
             />
             
             {showDropdown && sugestoesFiltradas.length > 0 && (
-              <View style={styles.dropdown}>
-                {/* always garante que o clique registre instantaneamente */}
+              <View style={[styles.dropdown, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <ScrollView keyboardShouldPersistTaps="always"> 
                   {sugestoesFiltradas.map((item, index) => (
                     <TouchableOpacity
                       key={index}
-                      style={styles.dropdownItem}
+                      style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
                       onPressIn={() => { 
                         setOcupacao(item);
                         setShowDropdown(false);
                       }}
                     >
-                      <Text style={styles.dropdownText}>{item}</Text>
+                      <Text style={[styles.dropdownText, { color: colors.text }]}>{item}</Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
@@ -209,69 +230,86 @@ export default function OnboardingScreen({ navigation }: any) {
           </View>
 
           {/* RENDA */}
-          <Text style={styles.label}>2. Qual é sua renda mensal?</Text>
-          <Text style={styles.helperText}>
+          <Text style={[styles.label, { color: colors.text }]}>2. Qual é sua renda mensal?</Text>
+          <Text style={[styles.helperText, { color: colors.textSecondary }]}>
             Usamos isso para sugerir limites saudáveis.
           </Text>
 
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input, 
+              { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }
+            ]}
             placeholder="R$ 0,00"
+            placeholderTextColor={colors.textSecondary}
             value={renda}
             onChangeText={(t) => handleMoneyChange(t, setRenda)}
             keyboardType="numeric"
-            // Se clicar na renda, garante que o dropdown da ocupação fecha
             onFocus={() => setShowDropdown(false)} 
           />
 
           {/* SALDO */}
-          <Text style={styles.label}>3. Quanto você tem disponível hoje?</Text>
-          <Text style={styles.helperText}>
+          <Text style={[styles.label, { color: colors.text }]}>3. Quanto você tem disponível hoje?</Text>
+          <Text style={[styles.helperText, { color: colors.textSecondary }]}>
             Pode ser o valor atual da sua conta.
           </Text>
 
-          <TextInput
-            style={[styles.input, { color: '#47A138', fontWeight: 'bold' }]}
+         <TextInput
+            style={[
+              styles.input, 
+              { backgroundColor: colors.card, borderColor: colors.border, color: '#10B981', fontWeight: 'bold' }
+            ]}
             placeholder="R$ 0,00"
+            placeholderTextColor={colors.textSecondary}
             value={saldo}
             onChangeText={(t) => handleMoneyChange(t, setSaldo)}
             keyboardType="numeric"
-            // Se clicar no saldo, garante que o dropdown da ocupação fecha
             onFocus={() => setShowDropdown(false)} 
           />
 
           {/* OBJETIVO */}
-          <Text style={styles.label}>4. Qual seu principal objetivo?</Text>
+          <Text style={[styles.label, { color: colors.text }]}>4. Qual seu principal objetivo?</Text>
 
           <View style={styles.chipsContainerWrap}>
-            {opcoesObjetivos.map((item, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.chipWrap,
-                  objetivo === item && styles.chipActive
-                ]}
-                onPress={() => {
-                  setObjetivo(item);
-                  setShowDropdown(false); // Fecha o dropdown se clicar nos chips também
-                }}
-              >
-                <Text
+            {opcoesObjetivos.map((item, index) => {
+              const isActive = objetivo === item;
+              return (
+                <TouchableOpacity
+                  key={index}
                   style={[
-                    styles.chipText,
-                    objetivo === item && styles.chipTextActive
+                    styles.chipWrap,
+                    { 
+                      backgroundColor: isActive ? `${colors.accent}15` : colors.card,
+                      borderColor: isActive ? colors.accent : colors.border
+                    }
                   ]}
+                  onPress={() => {
+                    setObjetivo(item);
+                    setShowDropdown(false);
+                  }}
+                  activeOpacity={0.7}
                 >
-                  {item}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[
+                      styles.chipText,
+                      { color: isActive ? colors.accent : colors.textSecondary, fontWeight: isActive ? 'bold' : 'normal' }
+                    ]}
+                  >
+                    {item}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </ScrollView>
 
         {/* FOOTER */}
-        <View style={styles.footer}>
-          <TouchableOpacity style={styles.saveBtn} onPress={handleFinish}>
+        <View style={[styles.footer, { borderTopColor: colors.border }]}>
+          <TouchableOpacity 
+            style={[styles.saveBtn, { backgroundColor: colors.accent }]} 
+            onPress={handleFinish}
+            activeOpacity={0.8}
+          >
             <Text style={styles.saveBtnText}>Começar minha jornada</Text>
             <Ionicons name="rocket-outline" size={20} color="#FFF" style={{ marginLeft: 8 }} />
           </TouchableOpacity>
@@ -281,43 +319,46 @@ export default function OnboardingScreen({ navigation }: any) {
   );
 }
 
+// --- ESTILOS ESTRUTURAIS ---
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFF' },
+  container: { flex: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', padding: 20 },
-  skipBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
-  skipText: { color: '#6B7280', fontWeight: '600' },
+  skipBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  skipText: { fontWeight: '600', marginRight: 4 },
+  
   content: { paddingHorizontal: 25, paddingBottom: 60, zIndex: 0 },
+  
   welcomeHeader: { alignItems: 'center', marginBottom: 30 },
-  iconCircle: { width: 70, height: 70, borderRadius: 35, backgroundColor: '#DCFCE7', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  iconCircle: { width: 70, height: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   title: { fontSize: 28, fontWeight: '900' },
-  highlightSubtitle: { fontSize: 15, color: '#6B7280', textAlign: 'center' },
-  mainEmphasis: { fontSize: 18, fontWeight: 'bold', color: '#16A34A', marginTop: 5 },
+  highlightSubtitle: { fontSize: 15, textAlign: 'center', marginTop: 8 },
+  mainEmphasis: { fontSize: 18, fontWeight: 'bold', marginTop: 5 },
+  
   label: { fontSize: 16, fontWeight: 'bold', marginTop: 15 },
-  helperText: { fontSize: 13, color: '#94A3B8', marginBottom: 10 },
-  input: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, padding: 16, marginBottom: 20 },
+  helperText: { fontSize: 13, marginBottom: 10 },
+  
+  input: { borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 20, fontSize: 16 },
   
   dropdown: {
     position: 'absolute',
     top: 65,
     left: 0,
     right: 0,
-    backgroundColor: '#FFF',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     zIndex: 1000,
     elevation: 10,
-    maxHeight: 180, // Mantém o tamanho da caixa limitado, forçando a rolagem
+    maxHeight: 180,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8
   },
-  dropdownItem: { padding: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  dropdownItem: { padding: 14, borderBottomWidth: 1 },
   dropdownText: { fontSize: 15 },
   
-  chipsContainerWrap: { flexDirection: 'row', flexWrap: 'wrap' },
-  chipWrap: { padding: 12, borderRadius: 20, borderWidth: 1, borderColor: '#E2E8F0', marginRight: 10, marginBottom: 10 },
-  chipActive: { backgroundColor: '#DCFCE7', borderColor: '#47A138' },
-  chipText: { color: '#6B7280' },
-  chipTextActive: { color: '#166534', fontWeight: 'bold' },
-  footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-  saveBtn: { backgroundColor: '#47A138', padding: 18, borderRadius: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
-  saveBtnText: { color: '#FFF', fontWeight: 'bold' }
+  chipsContainerWrap: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 5 },
+  chipWrap: { padding: 12, borderRadius: 20, borderWidth: 1, marginRight: 10, marginBottom: 10 },
+  chipText: { fontSize: 14 },
+  
+  footer: { padding: 20, borderTopWidth: 1 },
+  saveBtn: { padding: 18, borderRadius: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8 },
+  saveBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 }
 });

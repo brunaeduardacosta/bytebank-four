@@ -11,21 +11,23 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PieChart } from 'react-native-gifted-charts';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
 import Navbar from '../components/ui/Navbar';
-import { db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+// Importação do Contexto que acabamos de padronizar
+import { useTransactions } from '../context/TransactionContext';
 
 const { width } = Dimensions.get('window');
 
 export default function DashboardScreen({ navigation }: any) {
   const { user } = useAuth();
   const { colors: themeColors, theme: currentTheme } = useTheme();
+  
+  // 🔥 Consumindo a Fonte Única de Verdade (O Contexto)
+  const { transactions } = useTransactions();
 
   const [showBalance, setShowBalance] = useState(true);
-  const [dbTransactions, setDbTransactions] = useState<any[]>([]);
   const isDark = currentTheme === 'dark';
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -37,31 +39,6 @@ export default function DashboardScreen({ navigation }: any) {
       Animated.timing(slideAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
     ]).start();
   }, [fadeAnim, slideAnim]);
-
-  // 🔥 AGORA O DASHBOARD ESCUTA O FIRESTORE DIRETAMENTE
-  useEffect(() => {
-    if (!user) {
-      setDbTransactions([]);
-      return;
-    }
-
-    const q = query(collection(db, 'transactions'), where('userId', '==', user.uid));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((doc) => {
-        const raw = doc.data();
-        return {
-          id: doc.id,
-          ...raw,
-          date: raw.date?.toDate?.() || new Date(),
-        };
-      });
-
-      setDbTransactions(data);
-    });
-
-    return () => unsubscribe();
-  }, [user]);
 
   const colors = useMemo(
     () => ({
@@ -79,22 +56,17 @@ export default function DashboardScreen({ navigation }: any) {
 
   const firstName = user?.displayName?.split(' ')[0] || 'Usuário';
 
+  // 100% Sincronizado com o padrão 'receita' e 'despesa' do Contexto
   const financialData = useMemo(() => {
-    const safeTransactions = Array.isArray(dbTransactions) ? dbTransactions : [];
+    const safeTransactions = Array.isArray(transactions) ? transactions : [];
 
     const income = safeTransactions
-      .filter((t: any) => {
-        const type = String(t?.type || '').toLowerCase();
-        return type === 'receita' || type === 'income';
-      })
-      .reduce((sum, t) => sum + Number(t?.amount || 0), 0);
+      .filter((t) => t.type === 'receita')
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
     const expense = safeTransactions
-      .filter((t: any) => {
-        const type = String(t?.type || '').toLowerCase();
-        return type === 'despesa' || type === 'expense';
-      })
-      .reduce((sum, t) => sum + Number(t?.amount || 0), 0);
+      .filter((t) => t.type === 'despesa')
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
     const balance = income - expense;
 
@@ -106,7 +78,7 @@ export default function DashboardScreen({ navigation }: any) {
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         .slice(0, 5),
     };
-  }, [dbTransactions]);
+  }, [transactions]);
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', {
@@ -168,6 +140,9 @@ export default function DashboardScreen({ navigation }: any) {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
+          {/* Adicionado o spacer do Navbar para não cortar o topo como visto antes */}
+          <View style={styles.navbarSpacer} />
+          
           <View style={styles.contentWrapper}>
             <View style={styles.header}>
               <Text style={[styles.greeting, { color: colors.text }]}>
@@ -179,21 +154,14 @@ export default function DashboardScreen({ navigation }: any) {
             </View>
 
             {/* Card Saldo Principal */}
-            <View
-              style={[
-                styles.mainCard,
-                { backgroundColor: colors.card, borderColor: colors.border },
-              ]}
-            >
+            <View style={[styles.mainCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.cardHeader}>
                 <View>
                   <Text style={[styles.label, { color: colors.textSecondary }]}>
                     Saldo total
                   </Text>
                   <Text style={[styles.balanceText, { color: colors.text }]}>
-                    {showBalance
-                      ? formatCurrency(financialData.balance)
-                      : 'R$ ••••••'}
+                    {showBalance ? formatCurrency(financialData.balance) : 'R$ ••••••'}
                   </Text>
                 </View>
 
@@ -201,40 +169,19 @@ export default function DashboardScreen({ navigation }: any) {
                   onPress={() => setShowBalance(!showBalance)}
                   style={[
                     styles.eyeButton,
-                    {
-                      backgroundColor: isDark
-                        ? `${colors.textSecondary}20`
-                        : '#F1F5F9',
-                    },
+                    { backgroundColor: isDark ? `${colors.textSecondary}20` : '#F1F5F9' },
                   ]}
                 >
-                  <Ionicons
-                    name={showBalance ? 'eye-outline' : 'eye-off-outline'}
-                    size={22}
-                    color={colors.text}
-                  />
+                  <Ionicons name={showBalance ? 'eye-outline' : 'eye-off-outline'} size={22} color={colors.text} />
                 </TouchableOpacity>
               </View>
             </View>
 
             {/* Seção: Análise de Fluxo */}
             <View style={{ marginVertical: 8 }}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                Análise de Fluxo
-              </Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Análise de Fluxo</Text>
 
-              <View
-                style={[
-                  styles.chartCard,
-                  {
-                    backgroundColor: colors.card,
-                    borderColor: colors.border,
-                    flexDirection: 'row',
-                    justifyContent: 'space-around',
-                    alignItems: 'center',
-                  },
-                ]}
-              >
+              <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={{ paddingVertical: 10 }}>
                   <PieChart
                     data={[
@@ -247,30 +194,15 @@ export default function DashboardScreen({ navigation }: any) {
                     innerCircleColor={colors.card}
                     showText={false}
                     centerLabelComponent={() => {
-                      const total =
-                        financialData.income + financialData.expense || 1;
-                      const percent = Math.round(
-                        (financialData.income / total) * 100
-                      );
+                      const total = financialData.income + financialData.expense || 1;
+                      const percent = Math.round((financialData.income / total) * 100);
 
                       return (
                         <View style={{ alignItems: 'center' }}>
-                          <Text
-                            style={{
-                              color: colors.text,
-                              fontSize: 18,
-                              fontWeight: '900',
-                            }}
-                          >
+                          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>
                             {percent}%
                           </Text>
-                          <Text
-                            style={{
-                              color: colors.textSecondary,
-                              fontSize: 8,
-                              fontWeight: '800',
-                            }}
-                          >
+                          <Text style={{ color: colors.textSecondary, fontSize: 8, fontWeight: '800' }}>
                             ENTRADA
                           </Text>
                         </View>
@@ -280,78 +212,24 @@ export default function DashboardScreen({ navigation }: any) {
                 </View>
 
                 <View style={{ gap: 16 }}>
+                  {/* Legend: Entradas */}
                   <View>
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        marginBottom: 2,
-                      }}
-                    >
-                      <View
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: 4,
-                          backgroundColor: colors.success,
-                          marginRight: 6,
-                        }}
-                      />
-                      <Text
-                        style={{
-                          color: colors.text,
-                          fontSize: 14,
-                          fontWeight: '700',
-                        }}
-                      >
-                        Entradas
-                      </Text>
+                    <View style={styles.legendRow}>
+                      <View style={[styles.legendDot, { backgroundColor: colors.success }]} />
+                      <Text style={[styles.legendTitle, { color: colors.text }]}>Entradas</Text>
                     </View>
-                    <Text
-                      style={{
-                        color: colors.textSecondary,
-                        fontSize: 12,
-                        marginLeft: 14,
-                      }}
-                    >
+                    <Text style={[styles.legendValue, { color: colors.textSecondary }]}>
                       {formatCurrency(financialData.income)}
                     </Text>
                   </View>
 
+                  {/* Legend: Saídas */}
                   <View>
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        marginBottom: 2,
-                      }}
-                    >
-                      <View
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: 4,
-                          backgroundColor: colors.danger,
-                          marginRight: 6,
-                        }}
-                      />
-                      <Text
-                        style={{
-                          color: colors.text,
-                          fontSize: 14,
-                          fontWeight: '700',
-                        }}
-                      >
-                        Saídas
-                      </Text>
+                    <View style={styles.legendRow}>
+                      <View style={[styles.legendDot, { backgroundColor: colors.danger }]} />
+                      <Text style={[styles.legendTitle, { color: colors.text }]}>Saídas</Text>
                     </View>
-                    <Text
-                      style={{
-                        color: colors.textSecondary,
-                        fontSize: 12,
-                        marginLeft: 14,
-                      }}
-                    >
+                    <Text style={[styles.legendValue, { color: colors.textSecondary }]}>
                       {formatCurrency(financialData.expense)}
                     </Text>
                   </View>
@@ -360,128 +238,63 @@ export default function DashboardScreen({ navigation }: any) {
             </View>
 
             {/* Card Conectar Bancos */}
-            <TouchableOpacity
-              style={[styles.connectCard, { backgroundColor: colors.accent }]}
-            >
+            <TouchableOpacity style={[styles.connectCard, { backgroundColor: colors.accent }]}>
               <View style={styles.connectIconBg}>
                 <Ionicons name="link" size={22} color={colors.accent} />
               </View>
               <View style={{ marginLeft: 15 }}>
                 <Text style={styles.connectTitle}>Conectar bancos</Text>
-                <Text style={styles.connectSubtitle}>
-                  Sincronização automática
-                </Text>
+                <Text style={styles.connectSubtitle}>Sincronização automática</Text>
               </View>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color="#FFF"
-                style={{ marginLeft: 'auto' }}
-              />
+              <Ionicons name="chevron-forward" size={20} color="#FFF" style={{ marginLeft: 'auto' }} />
             </TouchableOpacity>
 
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Ações rápidas
-            </Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Ações rápidas</Text>
 
             <View style={styles.quickActionsGrid}>
               {quickActions.map((action, index) => (
                 <TouchableOpacity
                   key={index}
-                  style={[
-                    styles.quickActionCard,
-                    { backgroundColor: colors.card, borderColor: colors.border },
-                  ]}
+                  style={[styles.quickActionCard, { backgroundColor: colors.card, borderColor: colors.border }]}
                   onPress={action.onPress}
                 >
-                  <View
-                    style={[
-                      styles.quickActionIconWrap,
-                      { backgroundColor: action.bg },
-                    ]}
-                  >
+                  <View style={[styles.quickActionIconWrap, { backgroundColor: action.bg }]}>
                     <Ionicons name={action.icon as any} size={24} color={action.color} />
                   </View>
-
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.quickActionTitle, { color: colors.text }]}>
-                      {action.label}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.quickActionSubtitle,
-                        { color: colors.textSecondary },
-                      ]}
-                    >
-                      {action.subtitle}
-                    </Text>
+                    <Text style={[styles.quickActionTitle, { color: colors.text }]}>{action.label}</Text>
+                    <Text style={[styles.quickActionSubtitle, { color: colors.textSecondary }]}>{action.subtitle}</Text>
                   </View>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Lançamentos recentes
-            </Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Lançamentos recentes</Text>
 
-            {financialData.recent.map((transaction: any, index: number) => {
-              const type = String(transaction.type || '').toLowerCase();
-              const isIncome = type === 'receita' || type === 'income';
+            {financialData.recent.map((transaction: any) => {
+              const isIncome = transaction.type === 'receita';
 
               return (
                 <TouchableOpacity
-                  key={transaction.id || index}
-                  onPress={() =>
-                    navigation.navigate('TransactionForm', {
-                      transaction,
-                      type: transaction?.type || 'despesa',
-                    })
-                  }
+                  key={transaction.id}
+                  onPress={() => navigation.navigate('TransactionForm', { transaction, type: transaction.type })}
                   activeOpacity={0.9}
                 >
-                  <View
-                    style={[
-                      styles.tiContainer,
-                      { backgroundColor: colors.card, borderColor: colors.border },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.tiIconWrap,
-                        {
-                          backgroundColor: isIncome
-                            ? `${colors.success}18`
-                            : `${colors.danger}18`,
-                        },
-                      ]}
-                    >
-                      <Ionicons
-                        name={isIncome ? 'arrow-down' : 'arrow-up'}
-                        size={18}
-                        color={isIncome ? colors.success : colors.danger}
-                      />
+                  <View style={[styles.tiContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <View style={[styles.tiIconWrap, { backgroundColor: isIncome ? `${colors.success}18` : `${colors.danger}18` }]}>
+                      <Ionicons name={isIncome ? 'arrow-down' : 'arrow-up'} size={18} color={isIncome ? colors.success : colors.danger} />
                     </View>
 
                     <View style={{ flex: 1, marginLeft: 12 }}>
-                      <Text
-                        style={[styles.tiDesc, { color: colors.text }]}
-                        numberOfLines={1}
-                      >
+                      <Text style={[styles.tiDesc, { color: colors.text }]} numberOfLines={1}>
                         {transaction.description}
                       </Text>
-                      <Text
-                        style={[styles.tiDate, { color: colors.textSecondary }]}
-                      >
-                        {new Date(transaction.date).toLocaleDateString('pt-BR')}
+                      <Text style={[styles.tiDate, { color: colors.textSecondary }]}>
+                        {transaction.date instanceof Date ? transaction.date.toLocaleDateString('pt-BR') : 'Hoje'}
                       </Text>
                     </View>
 
-                    <Text
-                      style={[
-                        styles.tiAmount,
-                        { color: isIncome ? colors.success : colors.danger },
-                      ]}
-                    >
+                    <Text style={[styles.tiAmount, { color: isIncome ? colors.success : colors.danger }]}>
                       {isIncome ? '+' : '-'} {formatCurrency(Number(transaction.amount || 0))}
                     </Text>
                   </View>
@@ -497,6 +310,7 @@ export default function DashboardScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  navbarSpacer: { height: 90 }, // Mantido para o layout respirar abaixo do Navbar
   scrollContent: { padding: 16, paddingBottom: 40 },
   contentWrapper: { width: '100%', maxWidth: 860, alignSelf: 'center' },
   header: { marginBottom: 20 },
@@ -508,7 +322,11 @@ const styles = StyleSheet.create({
   balanceText: { fontSize: 32, fontWeight: '900', marginTop: 8 },
   eyeButton: { width: 42, height: 42, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   sectionTitle: { fontSize: 18, fontWeight: '800', marginBottom: 15, marginTop: 10 },
-  chartCard: { borderRadius: 24, padding: 20, borderWidth: 1, marginBottom: 20 },
+  chartCard: { borderRadius: 24, padding: 20, borderWidth: 1, marginBottom: 20, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' },
+  legendRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
+  legendDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
+  legendTitle: { fontSize: 14, fontWeight: '700' },
+  legendValue: { fontSize: 12, marginLeft: 14 },
   connectCard: { borderRadius: 22, padding: 18, flexDirection: 'row', alignItems: 'center', marginBottom: 24 },
   connectIconBg: { width: 45, height: 45, borderRadius: 12, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
   connectTitle: { color: '#FFF', fontWeight: '800', fontSize: 16 },
