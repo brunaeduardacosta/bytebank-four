@@ -9,9 +9,10 @@ import {
   Platform,
   ScrollView,
   Image,
-  Alert,
+ Alert,
   ActivityIndicator,
   StatusBar,
+  Modal,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -74,6 +75,7 @@ export default function TransactionFormScreen({ route, navigation }: any) {
     transaction?.receiptUrl || null
   );
   const [isSaving, setIsSaving] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const ui = useMemo(() => {
     const main = isReceita ? '#10B981' : '#EF4444';
@@ -95,6 +97,10 @@ export default function TransactionFormScreen({ route, navigation }: any) {
       currency: 'BRL',
     });
   }, [numericAmount]);
+
+  const finalDescription = useMemo(() => {
+    return description.trim() || (isReceita ? 'Receita' : 'Despesa');
+  }, [description, isReceita]);
 
   const handleMoneyChange = (text: string) => {
     setAmount(text.replace(/\D/g, ''));
@@ -161,11 +167,17 @@ export default function TransactionFormScreen({ route, navigation }: any) {
     ]);
   }, [transaction?.id, deleteTransaction, navigation]);
 
-  const handleSave = async () => {
+  const handleOpenConfirmModal = async () => {
     if (!selectedCategory || numericAmount <= 0) {
       return Alert.alert('Erro', 'Preencha valor e categoria.');
     }
 
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowConfirmModal(true);
+  };
+
+  const handleSave = async () => {
+    setShowConfirmModal(false);
     setIsSaving(true);
 
     try {
@@ -188,7 +200,7 @@ export default function TransactionFormScreen({ route, navigation }: any) {
       }
 
       const data = {
-        description: description.trim() || (isReceita ? 'Receita' : 'Despesa'),
+        description: finalDescription,
         amount: numericAmount,
         date: date.toISOString(),
         category: selectedCategory,
@@ -530,7 +542,7 @@ export default function TransactionFormScreen({ route, navigation }: any) {
                 opacity: isSaving ? 0.7 : 1,
               },
             ]}
-            onPress={handleSave}
+            onPress={handleOpenConfirmModal}
             disabled={isSaving}
           >
             {isSaving ? (
@@ -541,6 +553,144 @@ export default function TransactionFormScreen({ route, navigation }: any) {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* MODAL DE CONFIRMAÇÃO */}
+      <Modal
+        visible={showConfirmModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowConfirmModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.modalCard,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <View style={[styles.modalIconWrap, { backgroundColor: ui.soft }]}>
+              <Ionicons
+                name={isReceita ? 'arrow-down-outline' : 'arrow-up-outline'}
+                size={24}
+                color={ui.main}
+              />
+            </View>
+
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              Confirmar transação
+            </Text>
+
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+              Revise os dados antes de salvar
+            </Text>
+
+            <View
+              style={[
+                styles.summaryCard,
+                {
+                  backgroundColor: colors.background,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+                  Tipo
+                </Text>
+                <Text style={[styles.summaryValue, { color: ui.main }]}>
+                  {isReceita ? 'Receita' : 'Despesa'}
+                </Text>
+              </View>
+
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+                  Valor
+                </Text>
+                <Text style={[styles.summaryValue, { color: colors.text }]}>
+                  {displayAmount}
+                </Text>
+              </View>
+
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+                  Categoria
+                </Text>
+                <Text style={[styles.summaryValue, { color: colors.text }]}>
+                  {selectedCategory || '-'}
+                </Text>
+              </View>
+
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+                  Descrição
+                </Text>
+                <Text
+                  style={[styles.summaryValue, { color: colors.text }]}
+                  numberOfLines={2}
+                >
+                  {finalDescription}
+                </Text>
+              </View>
+
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+                  Data
+                </Text>
+                <Text style={[styles.summaryValue, { color: colors.text }]}>
+                  {format(date, 'dd/MM/yyyy')}
+                </Text>
+              </View>
+
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+                  Recibo
+                </Text>
+                <Text style={[styles.summaryValue, { color: colors.text }]}>
+                  {receiptImage ? 'Anexado' : 'Não anexado'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                onPress={() => setShowConfirmModal(false)}
+                style={[
+                  styles.modalCancelButton,
+                  {
+                    backgroundColor: colors.background,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.modalCancelText, { color: colors.text }]}>
+                  Cancelar
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleSave}
+                disabled={isSaving}
+                style={[
+                  styles.modalConfirmButton,
+                  {
+                    backgroundColor: ui.main,
+                    opacity: isSaving ? 0.7 : 1,
+                  },
+                ]}
+              >
+                {isSaving ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <Text style={styles.modalConfirmText}>Salvar</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -781,6 +931,106 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: '#FFF',
     fontSize: 16,
+    fontWeight: '700',
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+
+  modalCard: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 28,
+    padding: 22,
+    borderWidth: 1,
+  },
+
+  modalIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginBottom: 14,
+  },
+
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+
+  modalSubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 18,
+  },
+
+  summaryCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 18,
+  },
+
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+    gap: 10,
+  },
+
+  summaryLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    flex: 1,
+  },
+
+  summaryValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    flex: 1.4,
+    textAlign: 'right',
+  },
+
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+
+  modalCancelButton: {
+    flex: 1,
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  modalConfirmButton: {
+    flex: 1,
+    height: 52,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  modalCancelText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+
+  modalConfirmText: {
+    color: '#FFF',
+    fontSize: 15,
     fontWeight: '700',
   },
 });

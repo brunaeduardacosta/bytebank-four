@@ -310,6 +310,151 @@ export default function ResumoScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
 
+      {/* FILTROS AVANÇADOS - AGORA ABAIXO DO HEADER E ACIMA DAS TABS */}
+      {showFilters && (
+        <View
+          style={[
+            styles.filterCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              marginHorizontal: 20,
+              marginTop: 12,
+              marginBottom: 8,
+            },
+          ]}
+        >
+          <View style={styles.filterHeader}>
+            <Text style={[styles.filterTitle, { color: colors.text }]}>
+              Filtros avançados
+            </Text>
+
+            <TouchableOpacity onPress={clearFilters}>
+              <Text style={[styles.clearFilterText, { color: colors.accent }]}>
+                Limpar
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Busca */}
+          <View
+            style={[
+              styles.searchBox,
+              {
+                backgroundColor: theme === 'dark' ? '#0F172A' : '#F8FAFC',
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
+            <TextInput
+              placeholder="Buscar por descrição..."
+              placeholderTextColor={colors.textSecondary}
+              value={searchText}
+              onChangeText={setSearchText}
+              style={[styles.searchInput, { color: colors.text }]}
+            />
+          </View>
+
+          {/* Período */}
+          <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>
+            Período
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterChipsRow}
+          >
+            {[
+              { key: 'todos', label: 'Todos' },
+              { key: 'hoje', label: 'Hoje' },
+              { key: '7dias', label: '7 dias' },
+              { key: '30dias', label: '30 dias' },
+            ].map((item) => {
+              const active = periodFilter === item.key;
+              return (
+                <TouchableOpacity
+                  key={item.key}
+                  onPress={() => setPeriodFilter(item.key as PeriodFilter)}
+                  style={[
+                    styles.chip,
+                    {
+                      backgroundColor: active ? colors.accent : colors.background,
+                      borderColor: active ? colors.accent : colors.border,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      { color: active ? '#fff' : colors.text },
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          {/* Categorias */}
+          <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>
+            Categoria
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterChipsRow}
+          >
+            <TouchableOpacity
+              onPress={() => setCategoryFilter(null)}
+              style={[
+                styles.chip,
+                {
+                  backgroundColor: categoryFilter === null ? colors.accent : colors.background,
+                  borderColor: categoryFilter === null ? colors.accent : colors.border,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.chipText,
+                  { color: categoryFilter === null ? '#fff' : colors.text },
+                ]}
+              >
+                Todas
+              </Text>
+            </TouchableOpacity>
+
+            {availableCategories.map((category) => {
+              const active = categoryFilter === category;
+              return (
+                <TouchableOpacity
+                  key={category}
+                  onPress={() => setCategoryFilter(active ? null : category)}
+                  style={[
+                    styles.chip,
+                    {
+                      backgroundColor: active ? colors.accent : colors.background,
+                      borderColor: active ? colors.accent : colors.border,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      { color: active ? '#fff' : colors.text },
+                    ]}
+                  >
+                    {category}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
       {/* TABS */}
       <View
         style={[
@@ -417,145 +562,6 @@ export default function ResumoScreen({ navigation }: any) {
             {formatCurrency(totals.saldo)}
           </Text>
         </View>
-
-        {/* FILTROS AVANÇADOS */}
-        {showFilters && (
-          <View
-            style={[
-              styles.filterCard,
-              { backgroundColor: colors.card, borderColor: colors.border },
-            ]}
-          >
-            <View style={styles.filterHeader}>
-              <Text style={[styles.filterTitle, { color: colors.text }]}>
-                Filtros avançados
-              </Text>
-
-              <TouchableOpacity onPress={clearFilters}>
-                <Text style={[styles.clearFilterText, { color: colors.accent }]}>
-                  Limpar
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Busca */}
-            <View
-              style={[
-                styles.searchBox,
-                {
-                  backgroundColor: theme === 'dark' ? '#0F172A' : '#F8FAFC',
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
-              <TextInput
-                placeholder="Buscar por descrição..."
-                placeholderTextColor={colors.textSecondary}
-                value={searchText}
-                onChangeText={setSearchText}
-                style={[styles.searchInput, { color: colors.text }]}
-              />
-            </View>
-
-            {/* Período */}
-            <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>
-              Período
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterChipsRow}
-            >
-              {[
-                { key: 'todos', label: 'Todos' },
-                { key: 'hoje', label: 'Hoje' },
-                { key: '7dias', label: '7 dias' },
-                { key: '30dias', label: '30 dias' },
-              ].map((item) => {
-                const active = periodFilter === item.key;
-                return (
-                  <TouchableOpacity
-                    key={item.key}
-                    onPress={() => setPeriodFilter(item.key as PeriodFilter)}
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor: active ? colors.accent : colors.background,
-                        borderColor: active ? colors.accent : colors.border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        { color: active ? '#fff' : colors.text },
-                      ]}
-                    >
-                      {item.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-
-            {/* Categorias */}
-            <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>
-              Categoria
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterChipsRow}
-            >
-              <TouchableOpacity
-                onPress={() => setCategoryFilter(null)}
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor: categoryFilter === null ? colors.accent : colors.background,
-                    borderColor: categoryFilter === null ? colors.accent : colors.border,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    { color: categoryFilter === null ? '#fff' : colors.text },
-                  ]}
-                >
-                  Todas
-                </Text>
-              </TouchableOpacity>
-
-              {availableCategories.map((category) => {
-                const active = categoryFilter === category;
-                return (
-                  <TouchableOpacity
-                    key={category}
-                    onPress={() => setCategoryFilter(active ? null : category)}
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor: active ? colors.accent : colors.background,
-                        borderColor: active ? colors.accent : colors.border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        { color: active ? '#fff' : colors.text },
-                      ]}
-                    >
-                      {category}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
-        )}
 
         {/* GRÁFICO PRINCIPAL */}
         <View
@@ -920,7 +926,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 24,
     padding: 16,
-    marginBottom: 18,
   },
   filterHeader: {
     flexDirection: 'row',
