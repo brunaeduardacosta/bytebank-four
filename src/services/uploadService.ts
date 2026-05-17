@@ -1,7 +1,26 @@
-export const fakeUpload = async (localUri: string) => {
-  // Simula tempo de upload
-  await new Promise((resolve) => setTimeout(resolve, 1500));
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
-  // Gera URL simulada
-  return `https://fake-storage.firebase.com/receipts/${Date.now()}.jpg`;
+export const uploadReceipt = async (
+  imageUri: string,
+  userId: string
+): Promise<string> => {
+  try {
+    const response = await fetch(imageUri);
+
+    const blob = await response.blob();
+
+    const storage = getStorage();
+
+    const fileRef = ref(
+      storage,
+      `receipts/${userId}/${Date.now()}.jpg`
+    );
+
+    await uploadBytes(fileRef, blob);
+
+    return await getDownloadURL(fileRef);
+  } catch (error) {
+    console.error('Erro upload:', error);
+    throw error;
+  }
 };

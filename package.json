@@ -1,5 +1,5 @@
 {
-  "name": "finance-app",
+  "name": "bytebank-four",
   "version": "1.0.0",
   "main": "index.ts",
   "scripts": {
@@ -42,7 +42,8 @@
     "react-native-screens": "~4.16.0",
     "react-native-svg": "15.12.1",
     "react-native-web": "^0.21.0",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "zustand": "^5.0.13"
   },
   "devDependencies": {
     "@types/graceful-fs": "^4.1.9",

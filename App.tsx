@@ -3,17 +3,15 @@ import React from 'react';
 import { View, ActivityIndicator, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
-// 1. Importe o Provider do Safe Area
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import Routes from './src/navigation/Routes';
+import Routes from './src/presentation/navigation/Routes';
 
-import { AuthProvider, useAuth } from './src/context/AuthContext';
-import { TransactionProvider } from './src/context/TransactionContext';
-import { GoalsProvider } from './src/context/GoalsContext';
-import { ThemeProvider, useTheme } from './src/context/ThemeContext';
+import { AuthProvider, useAuth } from './src/presentation/contexts/AuthContext';
+import { TransactionProvider } from './src/presentation/contexts/TransactionContext';
+import { GoalsProvider } from './src/presentation/contexts/GoalsContext';
+import { ThemeProvider, useTheme } from './src/presentation/contexts/ThemeContext';
 
-// Correção para Web/iOS
 if (Platform.OS === 'ios' && typeof document !== 'undefined') {
   const style = document.createElement('style');
   style.textContent = `
@@ -28,7 +26,7 @@ if (Platform.OS === 'ios' && typeof document !== 'undefined') {
 function AppContent() {
   const { loading } = useAuth();
   const { colors, theme } = useTheme();
-  
+
   const MyNavTheme = {
     ...(theme === 'dark' ? DarkTheme : DefaultTheme),
     colors: {
@@ -42,7 +40,14 @@ function AppContent() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: colors.background,
+        }}
+      >
         <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
@@ -60,7 +65,6 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
         <ThemeProvider>
-          {/* 2. Envolva tudo com o SafeAreaProvider */}
           <SafeAreaProvider>
             <TransactionProvider>
               <GoalsProvider>

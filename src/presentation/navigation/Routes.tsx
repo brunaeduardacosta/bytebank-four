@@ -3,19 +3,19 @@ import { View, Text, StyleSheet, ActivityIndicator, Pressable, Image } from 'rea
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-import { useAuth } from '../presentation/contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../infrastructure/firebase/firebase'; 
-import { useTheme } from '../presentation/contexts/ThemeContext';
+import { db } from '../../infrastructure/firebase/firebase'; 
+import { useTheme } from '../contexts/ThemeContext';
 
-import DashboardScreen from '../presentation/screens/Dashboard/DashboardScreen';
-import TransactionFormScreen from '../presentation/screens/Transactions/TransactionFormScreen';
-import ResumoScreen from '../presentation/screens/Transactions/ResumoScreen';
-import LoginScreen from '../presentation/screens/Login/LoginScreen';
-import RegisterScreen from '../presentation/screens/Register/RegisterScreen';
-import ProfileScreen from '../presentation/screens/Profile/ProfileScreen';
-import GoalScreen from '../presentation/screens/Goals/GoalScreen';
-import OnboardingScreen from '../presentation/screens/Onboarding/OnboardingScreen';
+import DashboardScreen from '../screens/Dashboard/DashboardScreen';
+import TransactionFormScreen from '../screens/Transactions/TransactionFormScreen';
+import ResumoScreen from '../screens/Transactions/ResumoScreen';
+import LoginScreen from '../screens/Login/LoginScreen';
+import RegisterScreen from '../screens/Register/RegisterScreen';
+import ProfileScreen from '../screens/Profile/ProfileScreen';
+import GoalScreen from '../screens/Goals/GoalScreen';
+import OnboardingScreen from '../screens/Onboarding/OnboardingScreen';
 
 const Drawer = createDrawerNavigator();
 const Stack = createNativeStackNavigator();

@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "finance-app",
-    "slug": "finance-app",
+    "name": "bytebank-four",
+    "slug": "bytebank-four",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
