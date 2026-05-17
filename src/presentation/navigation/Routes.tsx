@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Pressable, Image } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Pressable, Image, Alert } from 'react-native';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import * as LocalAuthentication from 'expo-local-authentication';
+import { AppState } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '../contexts/AuthContext';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../../infrastructure/firebase/firebase'; 
 import { useTheme } from '../contexts/ThemeContext';
+import { CheckOnboardingUseCase } from '../../domain/usecases/CheckOnboardingUseCase';
+import { userRepository } from '../../infrastructure/repositories/FirestoreUserRepository';
 
 import DashboardScreen from '../screens/Dashboard/DashboardScreen';
 import TransactionFormScreen from '../screens/Transactions/TransactionFormScreen';
@@ -40,19 +43,19 @@ function HomeStack({ initialRouteName }: { initialRouteName: any }) {
 function CustomDrawerContent(props: any) {
   const { signOut, user } = useAuth();
   const { colors, theme } = useTheme();
-  const firstName = user?.displayName ? user.displayName.split(' ')[0] : 'Usuário';
+  const firstName = user?.name ? user.name.split(' ')[0] : 'Usuário';
 
   return (
     <DrawerContentScrollView {...props} contentContainerStyle={{ flex: 1, backgroundColor: colors.background }}>
       <View style={[styles.drawerHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <View style={[styles.avatar, { backgroundColor: colors.accent }]}>
-          {user?.photoURL ? (
-            <Image source={{ uri: user.photoURL }} style={styles.avatarImage} />
+          {user?.photoUrl ? (
+            <Image source={{ uri: user.photoUrl }} style={styles.avatarImage} />
           ) : (
             <Text style={styles.avatarText}>{firstName.charAt(0).toUpperCase()}</Text>
           )}
         </View>
-        <Text style={[styles.userName, { color: colors.text }]}>{user?.displayName || 'Usuário Bytebank'}</Text>
+        <Text style={[styles.userName, { color: colors.text }]}>{user?.name || 'Usuário Bytebank'}</Text>
         <Text style={[styles.userEmail, { color: colors.textSecondary }]}>{user?.email || ''}</Text>
       </View>
       <DrawerItemList {...props} />
@@ -66,39 +69,141 @@ function CustomDrawerContent(props: any) {
 }
 
 export default function Routes() {
-  const { user, loading } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const { colors, theme } = useTheme();
-  const [isCheckingBoarding, setIsCheckingBoarding] = useState(true);
+  const [checkedUserId, setCheckedUserId] = useState<string | null>(null);
   const [startScreen, setStartScreen] = useState<'Dashboard' | 'Onboarding'>('Dashboard');
+
+  const [isUnlocked, setIsUnlocked] = useState(true);
+  const appState = React.useRef(AppState.currentState);
+  const backgroundTime = React.useRef<number | null>(null);
+  const authTimeout = React.useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (
+        appState.current.match(/active/) &&
+        (nextAppState === 'inactive' || nextAppState === 'background')
+      ) {
+        backgroundTime.current = Date.now();
+      } else if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === 'active'
+      ) {
+        if (backgroundTime.current) {
+          const timeAway = Date.now() - backgroundTime.current;
+          if (timeAway > 30000) {
+            setIsUnlocked(false);
+          }
+          backgroundTime.current = null;
+        }
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+
+  const handleUnlock = async () => {
+    if (isAuthenticating) return;
+    
+    try {
+      setIsAuthenticating(true);
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+
+      if (!hasHardware || !isEnrolled) {
+        setIsUnlocked(true);
+        return;
+      }
+
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Autentique-se para acessar o Bytebank',
+        fallbackLabel: 'Usar senha',
+        cancelLabel: 'Cancelar',
+        disableDeviceFallback: false,
+      });
+
+      if (result.success) {
+        setIsUnlocked(true);
+      } else if ('error' in result && result.error === 'lockout') {
+        Alert.alert('Bloqueado', 'Muitas tentativas falhas. Tente novamente mais tarde.');
+      }
+    } catch (error) {
+      console.log('Erro na biometria:', error);
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user && !isUnlocked) {
+      authTimeout.current = setTimeout(() => {
+        handleUnlock();
+      }, 500);
+    }
+
+    return () => {
+      if (authTimeout.current) clearTimeout(authTimeout.current);
+    };
+  }, [user, isUnlocked]);
 
   useEffect(() => {
     async function checkOnboardingStatus() {
       if (user) {
         try {
-          const userRef = doc(db, 'users', user.uid);
-          const docSnap = await getDoc(userRef);
-          if (docSnap.exists() && docSnap.data().onboardingCompleted) {
+          const checkOnboardingUseCase = new CheckOnboardingUseCase(userRepository);
+          const hasCompleted = await checkOnboardingUseCase.execute(user.id);
+          if (hasCompleted) {
             setStartScreen('Dashboard');
           } else {
             setStartScreen('Onboarding'); 
           }
         } catch {
           setStartScreen('Dashboard');
+        } finally {
+          setCheckedUserId(user.id);
         }
       }
-      setIsCheckingBoarding(false); 
     }
 
-    if (!loading) {
-      if (user) { checkOnboardingStatus(); } 
-      else { setIsCheckingBoarding(false); }
+    if (!loading && user && checkedUserId !== user.id) {
+      checkOnboardingStatus();
     }
-  }, [user, loading]);
+  }, [user, loading, checkedUserId]);
 
-  if (loading || isCheckingBoarding) {
+  if (loading || (user && checkedUserId !== user.id)) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color="#47A138" />
+      </View>
+    );
+  }
+
+  if (user && !isUnlocked) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <Ionicons name="lock-closed" size={64} color={colors.accent} style={{ marginBottom: 20 }} />
+        <Text style={{ color: colors.text, fontSize: 20, marginBottom: 30, fontWeight: 'bold' }}>
+          App Bloqueado
+        </Text>
+        <Pressable 
+          onPress={handleUnlock}
+          style={[styles.unlockBtn, { backgroundColor: colors.accent, marginBottom: 20 }]}
+          disabled={isAuthenticating}
+        >
+          <Text style={styles.unlockBtnText}>
+            {isAuthenticating ? 'Aguardando...' : 'Desbloquear'}
+          </Text>
+        </Pressable>
+
+        <Pressable onPress={signOut} style={{ padding: 10 }}>
+          <Text style={{ color: colors.danger, fontWeight: 'bold' }}>Sair da conta</Text>
+        </Pressable>
       </View>
     );
   }
@@ -138,5 +243,7 @@ const styles = StyleSheet.create({
   userEmail: { fontSize: 12 },
   logoutContainer: { marginTop: 'auto', padding: 20, borderTopWidth: 1 },
   logoutBtn: { paddingVertical: 10 },
-  logoutText: { fontWeight: 'bold', fontSize: 16 }
+  logoutText: { fontWeight: 'bold', fontSize: 16 },
+  unlockBtn: { paddingHorizontal: 30, paddingVertical: 15, borderRadius: 8 },
+  unlockBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 }
 });

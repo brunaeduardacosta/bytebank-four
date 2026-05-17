@@ -9,18 +9,16 @@ import { getStorage } from "firebase/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDB7I0nE7I9KQcZv9ZBQndBldgxwzW8STc",
-  authDomain: "tech-challenge-fiap-77d29.firebaseapp.com",
-  projectId: "tech-challenge-fiap-77d29",
-  storageBucket: "tech-challenge-fiap-77d29.firebasestorage.app",
-  messagingSenderId: "533590741058",
-  appId: "1:533590741058:web:0261b1949de46e32999ddb",
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
 const app = initializeApp(firebaseConfig);
 
-// --- CORREÇÃO AQUI ---
-// Verifica a plataforma para usar a persistência correta
 export const auth = initializeAuth(app, {
   persistence: Platform.OS === 'web' 
     ? browserLocalPersistence 
@@ -29,5 +27,4 @@ export const auth = initializeAuth(app, {
 
 export const db = getFirestore(app);
 
-// Forçamos o Firebase a olhar para o bucket correto usando o protocolo gs://
-export const storage = getStorage(app, "gs://tech-challenge-fiap-77d29.firebasestorage.app");
+export const storage = getStorage(app, `gs://${process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET}`);
