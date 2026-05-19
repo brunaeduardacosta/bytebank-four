@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../infrastructure/firebase/firebase'; 
 import { useAuth } from './AuthContext';
+import { useGoalStore } from '../store/useGoalStore';
 
 // 1. Tipagem Rigorosa
 export interface Goal {
@@ -41,7 +42,7 @@ interface GoalsContextData {
 const GoalsContext = createContext<GoalsContextData>({} as GoalsContextData);
 
 export function GoalsProvider({ children }: { children: React.ReactNode }) {
-  const [goals, setGoals] = useState<Goal[]>([]);
+  const { goals, setGoals } = useGoalStore();
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
@@ -54,7 +55,7 @@ export function GoalsProvider({ children }: { children: React.ReactNode }) {
 
     const q = query(
       collection(db, 'goals'), 
-      where('userId', '==', user.uid),
+      where('userId', '==', user.id),
       orderBy('createdAt', 'desc')
     );
     
@@ -82,7 +83,7 @@ export function GoalsProvider({ children }: { children: React.ReactNode }) {
       const isFirstGoal = goals.length === 0;
       await addDoc(collection(db, 'goals'), {
         ...goal,
-        userId: user.uid,
+        userId: user.id,
         isPinned: isFirstGoal,
         createdAt: new Date()
       });
@@ -127,7 +128,7 @@ export function GoalsProvider({ children }: { children: React.ReactNode }) {
       // Busca a meta que está atualmente fixada para desfixá-la
       const pinnedQuery = query(
         collection(db, 'goals'), 
-        where('userId', '==', user.uid), 
+        where('userId', '==', user.id), 
         where('isPinned', '==', true)
       );
       const pinnedSnapshot = await getDocs(pinnedQuery);

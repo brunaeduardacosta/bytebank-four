@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useFinancialOverview } from '../../hooks/useFinancialOverview';
-import { Transaction } from '../contexts/TransactionContext';
+import { Transaction } from '../../types/transaction';
 
 export function useDashboardViewModel(transactions: Transaction[]) {
   const financial = useFinancialOverview(transactions);

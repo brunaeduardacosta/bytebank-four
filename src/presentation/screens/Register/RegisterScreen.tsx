@@ -8,10 +8,11 @@ import {
   KeyboardAvoidingView, 
   Platform, 
   Alert,
-  ActivityIndicator,
-  SafeAreaView
+  ActivityIndicator
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 
@@ -53,6 +54,14 @@ export default function RegisterScreen({ navigation }: any) {
       // Se der erro, o botão volta ao normal.
       setIsLoading(false);
     }
+  };
+
+  // --- AVISO GOOGLE (AVALIAÇÃO DE ARQUITETURA) ---
+  const handleGoogleMock = () => {
+    Alert.alert(
+      'Restrição de Ambiente (Expo Go)',
+      'O código de autenticação do Google e o tratamento de credenciais do Firebase já estão implementados na arquitetura. Porém, como estamos no Expo Go, as políticas de segurança do Google (Erro 400) bloqueiam o fluxo, pois exigem a assinatura SHA-1 de uma build nativa (Development Build). Por isso, mantive a UI apenas demonstrativa para a avaliação.'
+    );
   };
 
   return (
@@ -147,6 +156,36 @@ export default function RegisterScreen({ navigation }: any) {
               <Text style={styles.registerBtnText}>Criar minha conta</Text>
             )}
           </TouchableOpacity>
+          
+          {/* DIVISOR SOCIAL */}
+          <View style={styles.dividerContainer}>
+            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+            <Text style={[styles.dividerText, { color: colors.textSecondary }]}>Ou continue com</Text>
+            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+          </View>
+
+          {/* BOTÕES SOCIAIS */}
+          <View style={styles.socialContainer}>
+            <TouchableOpacity 
+              style={[styles.socialBtn, { backgroundColor: colors.card, borderColor: colors.border }]} 
+              activeOpacity={0.7}
+              onPress={handleGoogleMock}
+              disabled={isLoading}
+            >
+              <Ionicons name="logo-google" size={20} color={colors.text} />
+              <Text style={[styles.socialBtnText, { color: colors.text }]}>Google</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.socialBtn, { backgroundColor: colors.card, borderColor: colors.border }]} 
+              activeOpacity={0.7}
+              onPress={() => Alert.alert('Integração Necessária', 'A UI da Apple Auth foi preparada. Requer configuração no portal Apple Developer e no Firebase.')}
+              disabled={isLoading}
+            >
+              <Ionicons name="logo-apple" size={20} color={colors.text} />
+              <Text style={[styles.socialBtnText, { color: colors.text }]}>Apple</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Rodapé */}
@@ -221,5 +260,13 @@ const styles = StyleSheet.create({
   
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 30 },
   footerText: { fontSize: 14 },
-  loginText: { fontSize: 14, fontWeight: 'bold' }
+  loginText: { fontSize: 14, fontWeight: 'bold' },
+  
+  dividerContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 25, marginBottom: 20 },
+  dividerLine: { flex: 1, height: 1 },
+  dividerText: { marginHorizontal: 15, fontSize: 13 },
+  
+  socialContainer: { flexDirection: 'row', justifyContent: 'space-between' },
+  socialBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 14, borderRadius: 16, borderWidth: 1, marginHorizontal: 5 },
+  socialBtnText: { marginLeft: 8, fontSize: 15, fontWeight: 'bold' }
 });

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
   StatusBar,
   StyleSheet,
@@ -24,6 +24,34 @@ interface Transaction {
   amount: number;
   date: any;
 }
+
+const currencyFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+});
+const formatCurrency = (val: number) => currencyFormatter.format(val || 0);
+
+const TransactionItem = React.memo(({ transaction, colors }: { transaction: Transaction, colors: any }) => {
+  const isIncome = transaction.type === 'receita';
+  return (
+    <View style={[styles.tiContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={[styles.tiIconWrap, { backgroundColor: isIncome ? `${colors.success}18` : `${colors.danger}18` }]}>
+        <Ionicons name={isIncome ? 'arrow-down' : 'arrow-up'} size={18} color={isIncome ? colors.success : colors.danger} />
+      </View>
+      <View style={{ flex: 1, marginLeft: 12 }}>
+        <Text style={[styles.tiDesc, { color: colors.text }]} numberOfLines={1}>
+          {transaction.description}
+        </Text>
+        <Text style={[styles.tiDate, { color: colors.textSecondary }]}>
+          {transaction.date instanceof Date ? transaction.date.toLocaleDateString('pt-BR') : 'Hoje'}
+        </Text>
+      </View>
+      <Text style={[styles.tiAmount, { color: isIncome ? colors.success : colors.danger }]}>
+        {isIncome ? '+' : '-'} {formatCurrency(Number(transaction.amount || 0))}
+      </Text>
+    </View>
+  );
+});
 
 export default function DashboardScreen({ navigation }: any) {
   const { user } = useAuth();
@@ -67,13 +95,7 @@ export default function DashboardScreen({ navigation }: any) {
     [themeColors]
   );
 
-  const firstName = user?.displayName?.split(' ')[0] || 'Usuário';
-
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(val || 0);
+  const firstName = user?.name?.split(' ')[0] || 'Usuário';
 
   const { incomePercent, expensePercent } = React.useMemo(() => {
     const total = (financial.income || 0) + (financial.expense || 0);
@@ -138,15 +160,20 @@ export default function DashboardScreen({ navigation }: any) {
           transform: [{ translateY: slideAnim }],
         }}
       >
-        <ScrollView
+        <FlatList
+          data={financial.recent}
+          keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
-        >
-          {/* O espaçador agora possui altura zero pois a Navbar gerencia o próprio padding */}
-          <View style={styles.navbarSpacer} />
-
-          <View style={styles.contentWrapper}>
-            {/* HEADER */}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          renderItem={({ item }) => <TransactionItem transaction={item} colors={colors} />}
+          ListHeaderComponent={
+            <>
+              <View style={styles.navbarSpacer} />
+              <View style={styles.contentWrapper}>
+                {/* HEADER */}
             <View style={styles.header}>
               <Text style={[styles.greeting, { color: colors.text }]}>
                 Olá, {firstName} 👋
@@ -309,46 +336,13 @@ export default function DashboardScreen({ navigation }: any) {
               ))}
             </View>
 
-            {/* TRANSAÇÕES */}
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Lançamentos recentes
-            </Text>
-
-            {financial.recent.map((transaction: Transaction) => {
-              const isIncome = transaction.type === 'receita';
-
-              return (
-                <View
-                  key={transaction.id}
-                  style={[
-                    styles.tiContainer,
-                    {
-                      backgroundColor: colors.card,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                >
-                  <View style={[styles.tiIconWrap, { backgroundColor: isIncome ? `${colors.success}18` : `${colors.danger}18` }]}>
-                    <Ionicons name={isIncome ? 'arrow-down' : 'arrow-up'} size={18} color={isIncome ? colors.success : colors.danger} />
-                  </View>
-
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={[styles.tiDesc, { color: colors.text }]} numberOfLines={1}>
-                      {transaction.description}
-                    </Text>
-                    <Text style={[styles.tiDate, { color: colors.textSecondary }]}>
-                      {transaction.date instanceof Date ? transaction.date.toLocaleDateString('pt-BR') : 'Hoje'}
-                    </Text>
-                  </View>
-
-                  <Text style={[styles.tiAmount, { color: isIncome ? colors.success : colors.danger }]}>
-                    {isIncome ? '+' : '-'} {formatCurrency(Number(transaction.amount || 0))}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-        </ScrollView>
+              <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 10 }]}>
+                Lançamentos recentes
+              </Text>
+            </View>
+            </>
+          }
+        />
       </Animated.View>
     </View>
   );

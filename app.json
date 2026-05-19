@@ -2,6 +2,7 @@
   "expo": {
     "name": "bytebank-four",
     "slug": "bytebank-four",
+    "scheme": "bytebank",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -33,7 +34,9 @@
         {
           "faceIDPermission": "Permita que o Bytebank acesse o Face ID para desbloquear o app."
         }
-      ]
+      ],
+      "expo-secure-store",
+      "expo-web-browser"
     ]
   }
 }

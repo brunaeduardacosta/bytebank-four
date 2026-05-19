@@ -12,13 +12,14 @@ import { CheckOnboardingUseCase } from '../../domain/usecases/CheckOnboardingUse
 import { userRepository } from '../../infrastructure/repositories/FirestoreUserRepository';
 
 import DashboardScreen from '../screens/Dashboard/DashboardScreen';
+import OnboardingScreen from '../screens/Onboarding/OnboardingScreen';
+
 import TransactionFormScreen from '../screens/Transactions/TransactionFormScreen';
 import ResumoScreen from '../screens/Transactions/ResumoScreen';
 import LoginScreen from '../screens/Login/LoginScreen';
 import RegisterScreen from '../screens/Register/RegisterScreen';
 import ProfileScreen from '../screens/Profile/ProfileScreen';
 import GoalScreen from '../screens/Goals/GoalScreen';
-import OnboardingScreen from '../screens/Onboarding/OnboardingScreen';
 
 const Drawer = createDrawerNavigator();
 const Stack = createNativeStackNavigator();

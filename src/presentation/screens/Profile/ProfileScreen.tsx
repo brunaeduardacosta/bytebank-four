@@ -11,10 +11,11 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../../../infrastructure/firebase/firebase';
 
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export default function ProfileScreen({ navigation }: any) {
-  const { user, signOut } = useAuth();
+  const { user, signOut, resetPassword } = useAuth();
   const auth = getAuth();
   const { theme, colors, toggleTheme } = useTheme(); 
   
@@ -24,14 +25,14 @@ export default function ProfileScreen({ navigation }: any) {
   const [inputValue, setInputValue] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   
-  const [photoUrl, setPhotoUrl] = useState<string | null>(user?.photoURL || null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(user?.photoUrl || null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   useEffect(() => {
     const fetchUserData = async () => {
       if (user) {
         try {
-          const docRef = doc(db, 'users', user.uid);
+          const docRef = doc(db, 'users', user.id);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists() && docSnap.data().ocupacao) {
             setOcupacao(docSnap.data().ocupacao);
@@ -46,7 +47,7 @@ export default function ProfileScreen({ navigation }: any) {
     fetchUserData();
   }, [user]);
 
-  const firstName = user?.displayName ? user.displayName.split(' ')[0] : 'Usuário';
+  const firstName = user?.name ? user.name.split(' ')[0] : 'Usuário';
 
   const handlePickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -63,7 +64,19 @@ export default function ProfileScreen({ navigation }: any) {
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      uploadPhotoToFirebase(result.assets[0].uri);
+      try {
+        // --- 2. COMPRESSÃO DE IMAGEM PARA ECONOMIA DE REDE E STORAGE ---
+        const manipResult = await ImageManipulator.manipulateAsync(
+          result.assets[0].uri,
+          [{ resize: { width: 400, height: 400 } }], // Redimensiona garantindo um limite seguro
+          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG } // Comprime cortando ~30-50% do peso do arquivo
+        );
+        uploadPhotoToFirebase(manipResult.uri);
+      } catch (error) {
+        console.error("Erro ao comprimir imagem:", error);
+        // Fallback caso a compressão falhe, usa a imagem original
+        uploadPhotoToFirebase(result.assets[0].uri);
+      }
     }
   };
 
@@ -74,10 +87,12 @@ export default function ProfileScreen({ navigation }: any) {
       const response = await fetch(uri);
       const blob = await response.blob();
       const storage = getStorage();
-      const storageRef = ref(storage, `avatars/${user.uid}`);
+      const storageRef = ref(storage, `avatars/${user.id}`);
       await uploadBytes(storageRef, blob);
       const downloadUrl = await getDownloadURL(storageRef);
-      await updateProfile(user, { photoURL: downloadUrl });
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, { photoURL: downloadUrl });
+      }
       setPhotoUrl(downloadUrl);
       Alert.alert("Sucesso!", "Sua foto de perfil foi atualizada.");
     } catch (error) {
@@ -98,10 +113,12 @@ export default function ProfileScreen({ navigation }: any) {
     setIsSaving(true);
     try {
       if (editType === 'nome') {
-        await updateProfile(user, { displayName: inputValue });
+        if (auth.currentUser) {
+          await updateProfile(auth.currentUser, { displayName: inputValue });
+        }
         Alert.alert("Sucesso", "Nome atualizado!");
       } else if (editType === 'ocupacao') {
-        const userRef = doc(db, 'users', user.uid);
+        const userRef = doc(db, 'users', user.id);
         await updateDoc(userRef, { ocupacao: inputValue });
         setOcupacao(inputValue);
       }
@@ -116,7 +133,7 @@ export default function ProfileScreen({ navigation }: any) {
   const handleResetPassword = async () => {
     if (!user?.email) return;
     try {
-      await sendPasswordResetEmail(auth, user.email);
+      await resetPassword(user.email);
       Alert.alert("E-mail enviado!", "Verifique seu e-mail para redefinir a senha.");
     } catch (error) {
       Alert.alert("Erro", "Falha ao enviar e-mail.");
@@ -176,13 +193,13 @@ export default function ProfileScreen({ navigation }: any) {
               <Ionicons name="camera" size={14} color={colors.text} />
             </View>
           </TouchableOpacity>
-          <Text style={[styles.profileName, { color: colors.text }]}>{user?.displayName || 'Usuário'}</Text>
+          <Text style={[styles.profileName, { color: colors.text }]}>{user?.name || 'Usuário'}</Text>
           <Text style={[styles.profileEmail, { color: colors.textSecondary }]}>{user?.email}</Text>
         </View>
 
         <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Dados Pessoais</Text>
         <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <SettingsItem icon="person-outline" title="Nome" value={user?.displayName || 'Não informado'} onPress={() => openEditModal('nome', user?.displayName || '')} />
+          <SettingsItem icon="person-outline" title="Nome" value={user?.name || 'Não informado'} onPress={() => openEditModal('nome', user?.name || '')} />
           <SettingsItem icon="briefcase-outline" title="Ocupação" value={ocupacao} onPress={() => openEditModal('ocupacao', ocupacao)} />
         </View>
 

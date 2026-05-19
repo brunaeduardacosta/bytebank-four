@@ -32,7 +32,7 @@ export default function OnboardingScreen({ navigation }: any) {
 
   const [showDropdown, setShowDropdown] = useState(false);
 
-  const firstName = user?.displayName ? user.displayName.split(' ')[0] : 'Usuário';
+  const firstName = user?.name ? user.name.split(' ')[0] : 'Usuário';
 
   // Lista profissional (ordenada)
   const sugestoesOcupacaoBase = [
@@ -85,7 +85,7 @@ export default function OnboardingScreen({ navigation }: any) {
       const rendaNumerica = parseFloat(renda.replace(/\D/g, '')) / 100 || 0;
 
       // 1. SALVA NO FIRESTORE (A parte mais importante!)
-      const userRef = doc(db, 'users', user.uid);
+      const userRef = doc(db, 'users', user.id);
       await setDoc(
         userRef,
         {
@@ -128,7 +128,7 @@ export default function OnboardingScreen({ navigation }: any) {
     if (!user) return;
 
     try {
-      const userRef = doc(db, 'users', user.uid);
+      const userRef = doc(db, 'users', user.id);
       await setDoc(
         userRef,
         {

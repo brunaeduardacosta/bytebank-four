@@ -23,8 +23,8 @@ const Navbar: React.FC<NavbarProps> = ({ theme }) => {
   // Hook que calcula a barra de status / notch dinamicamente
   const insets = useSafeAreaInsets();
 
-  const userInitial = user?.displayName
-    ? user.displayName.charAt(0).toUpperCase()
+  const userInitial = user?.name
+    ? user.name.charAt(0).toUpperCase()
     : 'A';
 
   return (
@@ -91,9 +91,9 @@ const Navbar: React.FC<NavbarProps> = ({ theme }) => {
             onPress={() => navigation.navigate('Profile')}
           >
             <View style={[styles.avatar, { borderColor: theme.border }]}>
-              {user?.photoURL ? (
+              {user?.photoUrl ? (
                 <Image
-                  source={{ uri: user.photoURL }}
+                  source={{ uri: user.photoUrl }}
                   style={styles.avatarImage}
                 />
               ) : (

@@ -9,11 +9,13 @@ import {
   doc,
   updateDoc,
   deleteDoc,
-  orderBy
+  orderBy,
+  limit
 } from 'firebase/firestore';
 
 import { useAuth } from './AuthContext';
 import { Transaction } from '../../types/transaction';
+import { useTransactionStore } from '../store/useTransactionStore';
 
 interface TransactionContextData {
   transactions: Transaction[];
@@ -31,15 +33,9 @@ const TransactionContext = createContext<TransactionContextData>(
 );
 
 export const TransactionProvider = ({ children }: { children: React.ReactNode }) => {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const { transactions, balance, setTransactions } = useTransactionStore();
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
-
-  const balance = transactions.reduce((acc, curr) => {
-    return curr.type === 'receita'
-      ? acc + curr.amount
-      : acc - curr.amount;
-  }, 0);
 
   useEffect(() => {
     if (!user) {
@@ -50,8 +46,9 @@ export const TransactionProvider = ({ children }: { children: React.ReactNode })
 
     const q = query(
       collection(db, 'transactions'),
-      where('userId', '==', user.uid),
-      orderBy('date', 'desc')
+      where('userId', '==', user.id),
+      orderBy('date', 'desc'),
+      limit(50) // --- 1. LIMITAÇÃO DE QUERY (PREVINE OVERHEAD DE REDE E CUSTOS FIREBASE) ---
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -75,7 +72,7 @@ export const TransactionProvider = ({ children }: { children: React.ReactNode })
 
     await addDoc(collection(db, 'transactions'), {
       ...data,
-      userId: user.uid,
+      userId: user.id,
       date: new Date(),
     });
   };
