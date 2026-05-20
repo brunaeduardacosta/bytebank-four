@@ -89,11 +89,11 @@ export default function OnboardingScreen({ navigation }: any) {
       await setDoc(
         userRef,
         {
-          ocupacao: ocupacao.trim(),
-          rendaMensal: rendaNumerica,
-          objetivoPrincipal: objetivo || 'Não informado',
-          onboardingCompleted: true, // ✅ A Flag Mágica!
-          atualizadoEm: new Date()
+           ocupacao: ocupacao.trim(),
+           rendaMensal: rendaNumerica,
+           objetivoPrincipal: objetivo || 'Não informado',
+           onboardingCompleted: true, // ✅ A Flag Mágica!
+           atualizadoEm: new Date()
         },
         { merge: true }
       );
@@ -132,8 +132,8 @@ export default function OnboardingScreen({ navigation }: any) {
       await setDoc(
         userRef,
         {
-          onboardingCompleted: true, // ✅ Salva a flag mesmo se pular
-          atualizadoEm: new Date()
+           onboardingCompleted: true, // ✅ Salva a flag mesmo se pular
+           atualizadoEm: new Date()
         },
         { merge: true }
       );
@@ -331,6 +331,7 @@ const styles = StyleSheet.create({
   welcomeHeader: { alignItems: 'center', marginBottom: 30 },
   iconCircle: { width: 70, height: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   title: { fontSize: 28, fontWeight: '900' },
+  
   highlightSubtitle: { fontSize: 15, textAlign: 'center', marginTop: 8 },
   mainEmphasis: { fontSize: 18, fontWeight: 'bold', marginTop: 5 },
   

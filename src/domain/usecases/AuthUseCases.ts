@@ -12,6 +12,10 @@ export class AuthUseCases {
     return this.authRepository.signUp(nome, email, senha);
   }
 
+  async signInWithGoogle(idToken: string): Promise<void> {
+    return this.authRepository.signInWithGoogle(idToken);
+  }
+
   async signOut(): Promise<void> {
     return this.authRepository.signOut();
   }

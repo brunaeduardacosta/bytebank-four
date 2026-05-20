@@ -5,6 +5,8 @@ import {
   signOut as firebaseSignOut,
   updateProfile,
   sendPasswordResetEmail,
+  GoogleAuthProvider,
+  signInWithCredential,
   User
 } from 'firebase/auth';
 import { auth } from '../firebase/firebase';
@@ -60,6 +62,15 @@ export class FirebaseAuthRepository implements IAuthRepository {
         await updateProfile(userCredential.user, { displayName: nome });
         await userCredential.user.reload();
       }
+    } catch (error: any) {
+      throw new Error(translateFirebaseError(error.code));
+    }
+  }
+
+  async signInWithGoogle(idToken: string): Promise<void> {
+    try {
+      const credential = GoogleAuthProvider.credential(idToken);
+      await signInWithCredential(auth, credential);
     } catch (error: any) {
       throw new Error(translateFirebaseError(error.code));
     }

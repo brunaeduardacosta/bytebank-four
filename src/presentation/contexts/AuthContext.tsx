@@ -11,6 +11,7 @@ interface AuthContextData {
   loading: boolean;
   signIn: (email: string, senha: string) => Promise<void>;
   signUp: (nome: string, email: string, senha: string) => Promise<void>;
+  signInWithGoogle: (idToken: string) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
 }
@@ -38,6 +39,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await authUseCases.signUp(nome, email, senha);
   };
 
+  const signInWithGoogle = async (idToken: string) => {
+    await authUseCases.signInWithGoogle(idToken);
+  };
+
   const resetPassword = async (email: string) => {
     await authUseCases.resetPassword(email);
   };
@@ -52,6 +57,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       loading, 
       signIn, 
       signUp, 
+      signInWithGoogle,
       signOut,
       resetPassword 
     }}>
