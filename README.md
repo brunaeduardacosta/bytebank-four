@@ -7,14 +7,23 @@ O projeto foi construído seguindo princípios de Clean Architecture, com foco e
 
 ## **Tecnologias Utilizadas**
 React Native (Expo)
+
 TypeScript
+
 Firebase (Authentication + Firestore)
+
 Zustand (State Management)
+
 React Navigation (Stack + Drawer)
+
 AsyncStorage
+
 Expo Local Authentication (Biometria)
+
 Expo Vector Icons
+
 React Native Gesture Handler
+
 React Native Reanimated
 
 ## Arquitetura
@@ -22,8 +31,11 @@ React Native Reanimated
 O projeto segue Clean Architecture, dividido em camadas:
 
 **domain** → regras de negócio e use cases
+
 **infrastructure** → Firebase, APIs e persistência
+
 **presentation** → telas, componentes, hooks e state management
+
 **core** → utilitários, constantes e configurações globais
 
 ## Pré-requisitos
@@ -31,8 +43,11 @@ O projeto segue Clean Architecture, dividido em camadas:
 Antes de rodar o projeto, você precisa ter instalado:
 
 Node.js (>= 18)
+
 Expo CLI
+
 Git
+
 Android Studio ou Expo Go (mobile)
 
 ##  Instalação
@@ -58,10 +73,15 @@ yarn install
 Crie um arquivo .env na raiz do projeto:
 
 EXPO_PUBLIC_FIREBASE_API_KEY=xxxx
+
 EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=xxxx
+
 EXPO_PUBLIC_FIREBASE_PROJECT_ID=xxxx
+
 EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=xxxx
+
 EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=xxxx
+
 EXPO_PUBLIC_FIREBASE_APP_ID=xxxx
 
 ## Executando o Projeto
@@ -76,33 +96,52 @@ npx expo start --clear
 
 ## Rodando no celular
 Instale o app Expo Go
+
 Escaneie o QR Code gerado no terminal
 
 ## Funcionalidades
 Autenticação de usuário (Firebase Auth)
+
 Cadastro e login
+
 Controle de receitas e despesas
+
 Cálculo automático de saldo
+
 Resumo financeiro
+
 Persistência de dados
+
 Proteção por biometria
+
 Navegação com Drawer + Stack
+
 Onboarding inicial
 
 ## Melhorias Implementadas
 Clean Architecture
+
 Zustand para estado global
+
 Cache e persistência com AsyncStorage
+
 Lazy loading de telas
+
 Otimização de renderização (memoization)
+
 Limitação de queries no Firestore
+
 Separação de responsabilidades (domain / infra / presentation)
 
 ## Estrutura do Projeto
 src/
+
  ├── domain/
+
  ├── infrastructure/
+
  ├── presentation/
+
  ├── core/
 
 ## Autor
@@ -114,7 +153,7 @@ Bruna Eduarda; Arthur Tenorio
 
 Esse projeto foi estruturado com foco em:
 
-escalabilidade
-boas práticas de mercado
-arquitetura profissional
-performance mobile
+escalabilidade; 
+boas práticas de mercado; 
+arquitetura profissional; 
+performance mobile.
