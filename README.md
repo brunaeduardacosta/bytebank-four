@@ -3,109 +3,121 @@
 💸Status do Projeto: 
 🚀 Em desenvolvimento / Versão 1.0O 
 
-Bytebank Mobile é uma solução completa de gerenciamento financeiro pessoal. Desenvolvido em React Native com Expo, o aplicativo permite o controle rigoroso de receitas e despesas com persistência em nuvem via Firebase, oferecendo uma interface moderna e segura para o usuário final.
+Aplicação mobile desenvolvida com foco em controle financeiro pessoal, permitindo o gerenciamento de receitas e despesas, visualização de saldo e resumo financeiro, além de autenticação de usuários.
 
-📱 Funcionalidades Principais:
+O projeto foi construído seguindo princípios de Clean Architecture, com foco em escalabilidade, performance e boas práticas de desenvolvimento mobile.
 
-Autenticação Segura:
-- Cadastro de novos usuários.
-- Login com persistência de sessão (AsyncStorage).
-
-Experiência do Usuário (UX):
-- Onboarding interativo para novos perfis.
-- Dashboard dinâmico com saldo real, total de entradas e saídas.
- 
-Gestão de Lançamentos:
-- Cadastro de Transações (Receitas e Despesas).
-- Edição e Exclusão de lançamentos existentes.
-
-Análise de Dados:
-- Relatórios Gráficos (Barras e Pizza) para visualização de gastos por categoria.
-- Filtros Avançados por período (Data Inicial/Final) e Categoria.
 
 🛠️ Tecnologias Utilizadas
+React Native (Expo)
+TypeScript
+Firebase (Authentication + Firestore)
+Zustand (State Management)
+React Navigation (Stack + Drawer)
+AsyncStorage
+Expo Local Authentication (Biometria)
+Expo Vector Icons
+React Native Gesture Handler
+React Native Reanimated
 
-React Native / Expo	Framework Base
+🏗️ Arquitetura
 
-TypeScript:	Tipagem estática e segurança de código
+O projeto segue Clean Architecture, dividido em camadas:
 
-Firebase: Auth	Autenticação de usuários
+domain → regras de negócio e use cases
+infrastructure → Firebase, APIs e persistência
+presentation → telas, componentes, hooks e state management
+core → utilitários, constantes e configurações globais
 
-Firestore:	Banco de dados NoSQL em tempo real
+⚙️ Pré-requisitos
 
-Gifted Charts:	Visualização de dados e gráficos
+Antes de rodar o projeto, você precisa ter instalado:
 
-React Navigation:	Navegação entre telas (Stack/Tabs
+Node.js (>= 18)
+Expo CLI
+Git
+Android Studio ou Expo Go (mobile)
 
-📂 Estrutura de Pastas
+📦 Instalação
 
-Plaintextbytebank-mobile/
+Clone o repositório:
 
-├── src/
+git clone https://github.com/seu-usuario/bytebank-four.git
 
-│   ├── components/       # UI Reutilizável (Botões, Inputs, Navbar)
+Entre na pasta do projeto:
 
-│   ├── context/          # Provedores de estado (Auth, Theme, Transactions)
+cd bytebank-four
 
-│   ├── navigation/       # Configuração de rotas e pilhas
+Instale as dependências:
 
-│   ├── screens/          # Telas (Login, Dashboard, Resumo, Form)
-
-│   ├── services/         # Configuração Firebase e chamadas API
-
-│   └── types/            # Interfaces e definições TypeScript
-
-├── assets/               # Mídias, ícones e splash screen
-
-└── App.tsx               # Componente raiz
-
-
-🚀 Como Rodar o Projeto Localmente
-
-1. Preparação do Ambiente
-
-# Clone o repositório
-git clone https://github.com/SEU-USUARIO/bytebank-mobile.git
-
-# Entre no diretório
-cd bytebank-mobile
-
-# Instale as dependências
 npm install
 
-2. Configuração do Firebase
+ou
 
-Crie o arquivo src/services/firebaseConfig.ts e preencha com suas credenciais do console Firebase:TypeScriptconst firebaseConfig = {
-  apiKey: "SUA_API_KEY",
-  authDomain: "SEU_PROJETO.firebaseapp.com",
-  projectId: "SEU_PROJECT_ID",
-  storageBucket: "SEU_PROJETO.appspot.com",
-  messagingSenderId: "MESSAGING_ID",
-  appId: "APP_ID"
-};
+yarn install
 
+🔥 Configuração do Firebase
 
-5. Execução
+Crie um arquivo .env na raiz do projeto:
 
-# Inicie o servidor do Expo
+EXPO_PUBLIC_FIREBASE_API_KEY=xxxx
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=xxxx
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=xxxx
+EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=xxxx
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=xxxx
+EXPO_PUBLIC_FIREBASE_APP_ID=xxxx
+
+▶️ Executando o Projeto
+
+Inicie o projeto com:
+
 npx expo start
-Utilize o app Expo Go no celular ou um emulador Android/iOS para visualizar.
 
-🔐 Regras de Segurança (Firestore)
+Para limpar cache (recomendado em caso de erro):
 
-Para proteção dos dados dos usuários em ambiente de produção, utilize:JavaScriptservice cloud.firestore {
-  match /databases/{database}/documents {
-    match /transactions/{transactionId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
-    }
-  }
-}
+npx expo start --clear
 
-⚠️ Configurações Importantes (Babel & Reanimated)Caso utilize animações ou gráficos, garanta que seu babel.config.js contenha o plugin necessário:JavaScriptmodule.exports = function(api) {
-  api.cache(true);
-  return {
-    presets: ['babel-preset-expo'],
-    plugins: ['react-native-reanimated/plugin'], // Obrigatório para animações
-  };
-};
-👥 AutoresBruna Eduarda - Graduada em ADSArthur De Lima - Graduado em ADSEste projeto foi desenvolvido para fins acadêmicos e educacionais. 🎓
+📱 Rodando no celular
+Instale o app Expo Go
+Escaneie o QR Code gerado no terminal
+
+🧩 Funcionalidades
+Autenticação de usuário (Firebase Auth)
+Cadastro e login
+Controle de receitas e despesas
+Cálculo automático de saldo
+Resumo financeiro
+Persistência de dados
+Proteção por biometria
+Navegação com Drawer + Stack
+Onboarding inicial
+
+⚡ Melhorias Implementadas
+Clean Architecture
+Zustand para estado global
+Cache e persistência com AsyncStorage
+Lazy loading de telas
+Otimização de renderização (memoization)
+Limitação de queries no Firestore
+Separação de responsabilidades (domain / infra / presentation)
+
+📌 Estrutura do Projeto
+src/
+ ├── domain/
+ ├── infrastructure/
+ ├── presentation/
+ ├── core/
+
+👨‍💻 Autor
+
+Desenvolvido como parte do Tech Challenge – FIAP
+Bruna Eduarda; Arthur Tenorio
+
+📈 Observação Importante
+
+Esse projeto foi estruturado com foco em:
+
+escalabilidade
+boas práticas de mercado
+arquitetura profissional
+performance mobile
