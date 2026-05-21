@@ -1,14 +1,11 @@
+
 # Bytebank Mobile
-
-💸Status do Projeto: 
-🚀 Em desenvolvimento / Versão 1.0O 
-
 Aplicação mobile desenvolvida com foco em controle financeiro pessoal, permitindo o gerenciamento de receitas e despesas, visualização de saldo e resumo financeiro, além de autenticação de usuários.
 
 O projeto foi construído seguindo princípios de Clean Architecture, com foco em escalabilidade, performance e boas práticas de desenvolvimento mobile.
 
 
-🛠️ Tecnologias Utilizadas
+## **Tecnologias Utilizadas**
 React Native (Expo)
 TypeScript
 Firebase (Authentication + Firestore)
@@ -20,16 +17,16 @@ Expo Vector Icons
 React Native Gesture Handler
 React Native Reanimated
 
-🏗️ Arquitetura
+## Arquitetura
 
 O projeto segue Clean Architecture, dividido em camadas:
 
-domain → regras de negócio e use cases
-infrastructure → Firebase, APIs e persistência
-presentation → telas, componentes, hooks e state management
-core → utilitários, constantes e configurações globais
+**domain** → regras de negócio e use cases
+**infrastructure** → Firebase, APIs e persistência
+**presentation** → telas, componentes, hooks e state management
+**core** → utilitários, constantes e configurações globais
 
-⚙️ Pré-requisitos
+## Pré-requisitos
 
 Antes de rodar o projeto, você precisa ter instalado:
 
@@ -38,11 +35,11 @@ Expo CLI
 Git
 Android Studio ou Expo Go (mobile)
 
-📦 Instalação
+##  Instalação
 
 Clone o repositório:
 
-git clone https://github.com/seu-usuario/bytebank-four.git
+**git clone** https://github.com/seu-usuario/bytebank-four.git
 
 Entre na pasta do projeto:
 
@@ -56,7 +53,7 @@ ou
 
 yarn install
 
-🔥 Configuração do Firebase
+## Configuração do Firebase
 
 Crie um arquivo .env na raiz do projeto:
 
@@ -67,7 +64,7 @@ EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=xxxx
 EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=xxxx
 EXPO_PUBLIC_FIREBASE_APP_ID=xxxx
 
-▶️ Executando o Projeto
+## Executando o Projeto
 
 Inicie o projeto com:
 
@@ -77,11 +74,11 @@ Para limpar cache (recomendado em caso de erro):
 
 npx expo start --clear
 
-📱 Rodando no celular
+## Rodando no celular
 Instale o app Expo Go
 Escaneie o QR Code gerado no terminal
 
-🧩 Funcionalidades
+## Funcionalidades
 Autenticação de usuário (Firebase Auth)
 Cadastro e login
 Controle de receitas e despesas
@@ -92,7 +89,7 @@ Proteção por biometria
 Navegação com Drawer + Stack
 Onboarding inicial
 
-⚡ Melhorias Implementadas
+## Melhorias Implementadas
 Clean Architecture
 Zustand para estado global
 Cache e persistência com AsyncStorage
@@ -101,19 +98,19 @@ Otimização de renderização (memoization)
 Limitação de queries no Firestore
 Separação de responsabilidades (domain / infra / presentation)
 
-📌 Estrutura do Projeto
+## Estrutura do Projeto
 src/
  ├── domain/
  ├── infrastructure/
  ├── presentation/
  ├── core/
 
-👨‍💻 Autor
+## Autor
 
 Desenvolvido como parte do Tech Challenge – FIAP
 Bruna Eduarda; Arthur Tenorio
 
-📈 Observação Importante
+## Observação Importante
 
 Esse projeto foi estruturado com foco em:
 
